@@ -86,7 +86,8 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 | Mapping | `slam_toolbox` (async, pose-graph SLAM with Ceres) |
 | Navigation | Navigation2 — NavFn global planner, Regulated Pure Pursuit controller, AMCL, costmaps |
 | Phone sensors | Phyphox HTTP API, `urllib`, `sensor_msgs/Imu` + `NavSatFix` |
-| Vision | OpenCV 4.6, `cv_bridge` *(scaffolded, not yet implemented)* |
+| Phone camera | IP Camera Lite MJPEG/RTSP, OpenCV `VideoCapture`, `cv_bridge` |
+| Vision | OpenCV 4.6 detector *(scaffolded, not yet implemented)* |
 | Visualisation | RViz2, `rqt_graph`, `tf2_echo`, `ros2 topic hz/echo` |
 | Environment | Docker, Xvfb (headless screenshots) |
 | Language | Python 3.12 |
@@ -262,6 +263,23 @@ Verified end to end by subscribing to the resulting topic:
 
 The magnitude landing on gravity is the check that matters: it confirms the phone-to-ROS
 axis remapping is right, not merely that numbers are arriving.
+
+### The camera
+
+A second phone stream, through `phone_camera_bridge`: IP Camera Lite serves the phone
+camera over MJPEG (and RTSP), OpenCV's `VideoCapture` opens it, and each frame is
+republished as `sensor_msgs/Image` on `/phone/camera/image_raw` — the same message
+Gazebo's camera plugin produces. A background thread grabs frames while a timer publishes
+the newest one, so a slow network drops frames rather than lagging further behind.
+
+The bottleneck here was **message size, not the camera.** The phone sends 1920×1080; a raw
+frame at that size is 6.2 MB, and 15 of them per second is 93 MB/s, which DDS could not
+sustain — throughput at the subscriber collapsed to 1.9 Hz. Downscaling to 640 wide on the
+publisher side, before serialisation, cut each frame to 0.7 MB and let the full ~10 Hz the
+phone delivers through. The simulated camera is 640×480 anyway, so nothing is lost.
+
+The stream is password protected. The URL, with credentials, is a launch parameter — never
+in the source, never in git — and credentials are masked in the logs.
 
 ### Things that only showed up against real hardware
 
@@ -484,10 +502,16 @@ Stated plainly, because they matter for interpreting the results:
 - **The robot is simulated.** Gazebo's sensor noise is Gaussian and well-behaved; real LiDAR
   is defeated by glass, mirrors and dark surfaces, real wheels slip on dust, and real
   timestamps jitter. Simulation flatters these algorithms.
-- **The phone's IMU and GPS are integrated; its camera and the OpenCV node are not.**
-  Real accelerometer, gyroscope and GPS data flows into ROS 2 today, verified against
-  gravity. The camera stream and object detection are designed but not built, and nothing
-  yet acts on the phone's data — it is published, not consumed.
+- **The phone's IMU, GPS and camera are integrated; the OpenCV detector is not.**
+  Real accelerometer, gyroscope, GPS and camera data all flow into ROS 2 today, verified
+  end to end. What does not exist yet is anything that *acts* on them: the phone's data is
+  published, not consumed. Closing that loop — a detector on the camera that changes the
+  robot's behaviour — is the remaining work.
+
+- **The two phone streams cannot run at once.** iOS only lets the foreground app hold a
+  network server, so Phyphox (IMU) and IP Camera Lite (camera) run one at a time, not
+  together. On a real robot each sensor is its own device; here they share one, so they
+  are demonstrated separately, or recorded to separate rosbags and replayed together.
 - **`DriveDistance` measures distance open-loop**, as `speed × elapsed_time`. It assumes no
   wheel slip and no acceleration ramp. It should subscribe to `/odom` instead; the action
   *interface* would not change, only the implementation.

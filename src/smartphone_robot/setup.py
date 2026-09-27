@@ -46,6 +46,7 @@ setup(
             'wander_node = smartphone_robot.wander_node:main',
             'localization_eval = smartphone_robot.localization_eval:main',
             'phone_sensor_bridge = smartphone_robot.phone_sensor_bridge:main',
+            'phone_camera_bridge = smartphone_robot.phone_camera_bridge:main',
         ],
     },
 )
