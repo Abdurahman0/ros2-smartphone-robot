@@ -97,6 +97,9 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 ├── docker/Dockerfile                  # the whole environment, reproducible
 ├── scripts/
 │   ├── capture_rviz.sh                # screenshots via Xvfb, no display needed
+│   ├── record_demo.sh                 # the demo video, same way
+│   ├── bake_rviz_geometry.sh          # let RViz write its own panel layout
+│   ├── check_xml.py                   # catch the '--' in XML comments trap
 │   └── stop_all.sh                    # clean shutdown (see Limitations)
 ├── src/
 │   ├── smartphone_robot_interfaces/   # custom action definitions (ament_cmake)
@@ -324,6 +327,22 @@ Problems that were found by testing rather than by reading tutorials, and how th
   `unable to be reached ... Aborting bringup` at any timeout. Configure and activate had
   already succeeded, so SLAM mapped perfectly throughout. Bond checking is now disabled
   for that node.
+- **An RViz config does not fully describe an RViz layout.** Panel sizes live in
+  `Window Geometry: QMainWindow State`, a Qt-serialised blob tied to the window size.
+  A hand-written config without it looks completely different on another screen, because
+  RViz falls back to distributing panels evenly. `scripts/bake_rviz_geometry.sh` runs
+  RViz on a 1920x1080 virtual display, sends it Ctrl+S, and splices the resulting block
+  back into the hand-written file so the comments survive. That also needs a window
+  manager on the virtual display — without one, windows cannot be focused and keystrokes
+  never arrive.
+- **RViz applies one material per link; Gazebo applies one per visual.** A link with
+  several `<visual>` elements renders in RViz entirely in the *first* one's colour.
+  Confirmed by reordering: moving the blue deck ahead of the chassis turned the whole
+  body blue. So the robot shows its full detail in Gazebo and a single flat colour in
+  RViz, and the visual order in the URDF is chosen with that in mind.
+- **XML comments cannot contain `--`.** This broke every xacro file, the world file and
+  a robot description four separate times, each time surfacing as an unhelpful
+  "not well-formed (invalid token)". `scripts/check_xml.py --fix` now catches it.
 - **An unused Nav2 server stopped navigation from starting, silently.** `nav2_bringup`
   brings up `docking_server`, `route_server` and `waypoint_follower` as well as the
   planning stack. This project uses none of them, but they still have to be given valid

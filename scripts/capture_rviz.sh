@@ -16,7 +16,7 @@ CONFIG="${1:?usage: capture_rviz.sh <rviz_config> <output.png> [settle_seconds]}
 OUTPUT="${2:?usage: capture_rviz.sh <rviz_config> <output.png> [settle_seconds]}"
 SETTLE="${3:-25}"
 DISPLAY_NUM=":99"
-RES="1600x1000x24"
+RES="1920x1080x24"
 
 # ROS's setup.bash reads variables it has not defined, so it trips `set -u`.
 # Disable nounset just for the sourcing, then restore it.
@@ -25,14 +25,26 @@ source /opt/ros/jazzy/setup.bash
 source ~/ros2_ws/install/setup.bash
 set -u
 
-cleanup() { kill "${RVIZ_PID:-}" "${XVFB_PID:-}" 2>/dev/null || true; }
+cleanup() { kill "${RVIZ_PID:-}" "${WM_PID:-}" "${XVFB_PID:-}" 2>/dev/null || true; }
 trap cleanup EXIT
 
 # Reuse an existing Xvfb if one is already up, otherwise start one.
+#
+# The resolution matches a normal 1920x1080 desktop on purpose. RViz stores dock sizes
+# in its config as a Qt blob tied to the window size, so capturing at a different
+# resolution produces screenshots that do not match what a user actually sees.
 if ! DISPLAY="$DISPLAY_NUM" xdpyinfo >/dev/null 2>&1; then
   Xvfb "$DISPLAY_NUM" -screen 0 "$RES" -nolisten tcp >/tmp/xvfb.log 2>&1 &
   XVFB_PID=$!
   sleep 3
+fi
+
+# A window manager is required, not optional: without one, windows cannot be resized,
+# focused or sent keystrokes, and RViz opens at whatever size Qt picks.
+if ! pgrep -x openbox >/dev/null 2>&1; then
+  DISPLAY="$DISPLAY_NUM" openbox >/tmp/openbox.log 2>&1 &
+  WM_PID=$!
+  sleep 2
 fi
 
 # LIBGL_ALWAYS_SOFTWARE: Xvfb has no GPU, so Mesa must fall back to llvmpipe.
@@ -42,6 +54,15 @@ RVIZ_PID=$!
 
 echo "Waiting ${SETTLE}s for RViz to render..."
 sleep "$SETTLE"
+
+# Size the window like a maximised one, so the baked-in dock layout is reproduced.
+export DISPLAY="$DISPLAY_NUM"
+WIN=$(xdotool search --name "RViz" 2>/dev/null | tail -1)
+if [ -n "${WIN:-}" ]; then
+  xdotool windowsize "$WIN" 1920 1040
+  xdotool windowmove "$WIN" 0 0
+  sleep 3
+fi
 
 DISPLAY="$DISPLAY_NUM" scrot -o /tmp/_shot.png
 

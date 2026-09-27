@@ -58,7 +58,7 @@
   <xacro:property name="PI" value="3.14159265359"/>
 
   <!-- ==================== Materials (RViz colours only) ================== -->
-  <material name="chassis">  <color rgba="0.26 0.29 0.36 1.0"/></material>
+  <material name="chassis">  <color rgba="0.34 0.40 0.50 1.0"/></material>
   <material name="deck">     <color rgba="0.20 0.58 0.86 1.0"/></material>
   <material name="tyre">     <color rgba="0.08 0.08 0.09 1.0"/></material>
   <material name="hub">      <color rgba="0.62 0.64 0.68 1.0"/></material>
@@ -90,8 +90,20 @@
 
   <link name="base_link">
     <!-- Several visual elements on one link. URDF allows this, and it costs nothing:
-         collision and inertia are unchanged, so physics and TF are identical. Only
-         what RViz and Gazebo draw is different. -->
+         collision and inertia are unchanged, so physics and TF are identical.
+
+         BUT RViz AND GAZEBO DISAGREE ABOUT MATERIALS HERE, and it is worth knowing why.
+         Gazebo renders each <visual> with its own material, so the robot appears as
+         designed: slate body, blue deck, orange bumper. RViz applies ONE material per
+         LINK  - whichever the first <visual> declares  - so in RViz the whole chassis
+         takes the 'chassis' colour and the deck and bumper are invisible. Verified by
+         reordering the visuals: putting 'deck' first turns the entire body blue.
+
+         So the visual order below is deliberate: 'chassis' first, because that is the
+         colour RViz will use for the whole link. The rest is detail only Gazebo shows.
+         Splitting the deck and bumper into their own links would make RViz colour them
+         too, but it would add frames to the TF tree purely for decoration, which is not
+         a trade worth making in a robot description. -->
     <visual name="chassis">
       <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
       <geometry>
