@@ -45,6 +45,7 @@ setup(
             'drive_distance_server = smartphone_robot.drive_distance_server:main',
             'wander_node = smartphone_robot.wander_node:main',
             'localization_eval = smartphone_robot.localization_eval:main',
+            'phone_sensor_bridge = smartphone_robot.phone_sensor_bridge:main',
         ],
     },
 )

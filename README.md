@@ -85,6 +85,7 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 | Robot description | URDF + xacro, TF2, `robot_state_publisher` |
 | Mapping | `slam_toolbox` (async, pose-graph SLAM with Ceres) |
 | Navigation | Navigation2 — NavFn global planner, Regulated Pure Pursuit controller, AMCL, costmaps |
+| Phone sensors | Phyphox HTTP API, `urllib`, `sensor_msgs/Imu` + `NavSatFix` |
 | Vision | OpenCV 4.6, `cv_bridge` *(scaffolded, not yet implemented)* |
 | Visualisation | RViz2, `rqt_graph`, `tf2_echo`, `ros2 topic hz/echo` |
 | Environment | Docker, Xvfb (headless screenshots) |
@@ -223,6 +224,76 @@ Measured in the 8 × 8 m `indoor.world`, all verified from live topic output:
 | **Localisation accuracy** | **76–83 % of laser returns land exactly on a mapped wall cell, 0 % fall outside the map, mean error 0.9–2.7 cm** (measured, see below) |
 | **Navigation** | consecutive goals all `SUCCEEDED` with **0 recovery behaviours** and `Failed to make progress: 0`; final position error 0.16–0.20 m against a 0.20 m tolerance |
 | Velocity control | commanded 10 Hz measured at 9.999 Hz; 20 Hz at 20.00 Hz |
+
+## The Smartphone as a Real Sensor
+
+The rest of this project runs on simulated sensors. This part does not: an iPhone
+publishes its real accelerometer, gyroscope and GPS into ROS 2, through a driver written
+for this project.
+
+```
+phone (Phyphox)  --WiFi / HTTP-->  phone_sensor_bridge  --DDS-->  /phone/imu, /phone/gps
+```
+
+`phone_sensor_bridge` is a sensor driver in the ordinary sense: it speaks a link the rest
+of the system knows nothing about and republishes what it reads as `sensor_msgs/Imu` and
+`sensor_msgs/NavSatFix`. Downstream, nothing can tell it apart from a simulated or an
+industrial IMU.
+
+### The problem that made it interesting
+
+A single HTTP round trip to the phone took a **median of 242 ms** — measured, not assumed.
+Requesting one reading per request would have given about **4 Hz**, useless for an IMU.
+
+Phyphox can also be asked for *every* sample newer than a given timestamp. One such
+request, taking 150 ms, returned **108 samples spanning 2.1 s**. So the transport rate and
+the sample rate are separable: poll slowly, receive batches, publish each sample with its
+own timestamp.
+
+Verified end to end by subscribing to the resulting topic:
+
+| | Measured |
+|---|---|
+| Samples received | 624 in 12 s |
+| **Rate reconstructed from timestamps** | **51.0 Hz** — the phone's full configured rate |
+| Median acceleration magnitude, phone at rest | 9.76 m/s² (gravity is 9.81) |
+| Range | 9.66 – 9.93 m/s² (sensor noise) |
+| Angular velocity, phone at rest | max 0.04 rad/s |
+
+The magnitude landing on gravity is the check that matters: it confirms the phone-to-ROS
+axis remapping is right, not merely that numbers are arriving.
+
+### Things that only showed up against real hardware
+
+- **iOS serves Phyphox on port 80, not the documented 8080.** Port 8080 was refused.
+  Checked rather than assumed.
+- **JSON has one number type.** Phyphox sends a reading that happens to be exactly zero
+  as `0`, which Python parses as an `int`. Assigning an int into a `geometry_msgs/Vector3`
+  does not raise a Python exception — it fails inside the C extension with
+  `Assertion 'PyFloat_Check(field)' failed` and aborts the process. It therefore survives
+  every test where the phone is moving, and crashes the moment it is set down flat.
+- **Phyphox keeps the whole recording.** Connecting to a session already running returned
+  21096 backlogged samples at once. The bridge now moves its cursor to the newest sample
+  on connect without publishing, so consumers are not handed a burst of stale readings
+  stamped as if they had just arrived.
+- **Restarting the experiment resets its clock to zero** and announces this only by
+  changing a session id. Without watching for that, the bridge would keep asking for
+  samples newer than a timestamp that will never come again, and go silent with no error.
+
+### Honest limitations
+
+- Absolute latency is **not** corrected. Between 50 and 400 ms passes between a
+  measurement and this node seeing it, and it varies. Relative timing within a batch is
+  correct; absolute timing is not. Good enough to observe motion, not good enough to fuse
+  into odometry — that needs real time synchronisation.
+- The axis mapping assumes the phone lies flat, screen up, top edge forward. Hold it
+  differently and the mapping is wrong. On a robot this is what the URDF's `imu_link`
+  exists to express.
+- Orientation is not published (`orientation_covariance[0] = -1`). Phyphox streams raw
+  sensors; inventing an orientation from them would be a fusion step, not a measurement.
+- **The phone observes the room you are in; the robot drives in the simulated one.** They
+  are different places. This is real sensor data entering a robotics stack, not a phone
+  mapping your house.
 
 ## Measuring, Not Demonstrating
 
@@ -413,10 +484,10 @@ Stated plainly, because they matter for interpreting the results:
 - **The robot is simulated.** Gazebo's sensor noise is Gaussian and well-behaved; real LiDAR
   is defeated by glass, mirrors and dark surfaces, real wheels slip on dust, and real
   timestamps jitter. Simulation flatters these algorithms.
-- **The smartphone bridge and the OpenCV node are not implemented yet.** They are designed
-  (see the dashed boxes in the architecture diagram) and their dependencies are installed
-  and verified, but no phone data flows through the system today. Nothing in this README
-  claims otherwise.
+- **The phone's IMU and GPS are integrated; its camera and the OpenCV node are not.**
+  Real accelerometer, gyroscope and GPS data flows into ROS 2 today, verified against
+  gravity. The camera stream and object detection are designed but not built, and nothing
+  yet acts on the phone's data — it is published, not consumed.
 - **`DriveDistance` measures distance open-loop**, as `speed × elapsed_time`. It assumes no
   wheel slip and no acceleration ramp. It should subscribe to `/odom` instead; the action
   *interface* would not change, only the implementation.
