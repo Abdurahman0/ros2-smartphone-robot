@@ -25,9 +25,12 @@ rosbag2_*/
 *.swp
 .DS_Store
 
-# --- large media: demo video is linked from the README, not stored in the repo ---
-demo/*.mp4
+# --- large media ---
+# The short navigation demo (~1.6 MB) is small enough to keep in the repo; anything
+# longer or raw should be linked instead of committed.
 demo/*.mkv
+demo/*.raw
+demo/_*
 
 # --- crash dumps left by killed simulator processes ---
 core

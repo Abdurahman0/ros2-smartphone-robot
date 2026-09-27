@@ -231,6 +231,28 @@ partition, two cylindrical pillars and two crates are all recovered.*
 ![Robot model and TF](screenshots/06_rviz_robot_model_tf.png)
 *URDF model with its TF frames.*
 
+## Demo Video
+
+[`demo/navigation_demo.mp4`](demo/navigation_demo.mp4) — 75 s, 1600 × 1000, recorded
+directly from RViz while the robot executed two navigation goals back to back. Both
+finished `SUCCEEDED`. The global plan (green) and the inflated costmap are visible
+throughout.
+
+It was produced with `scripts/record_demo.sh`, which renders RViz onto an Xvfb virtual
+display and captures it with ffmpeg — so it needs no physical screen and anyone with this
+repository can regenerate it:
+
+```bash
+ros2 launch smartphone_robot navigation.launch.py rviz:=false      # terminal 1
+scripts/record_demo.sh \
+  install/smartphone_robot/share/smartphone_robot/rviz/navigation.rviz \
+  demo/navigation_demo.mp4 75                                      # terminal 2
+```
+
+> To make the video play inline on GitHub rather than appear as a download link, drag the
+> file into a GitHub issue or pull-request comment and paste the resulting CDN URL here.
+> Video files served from the repository itself do not embed.
+
 ## Engineering Notes
 
 Problems that were found by testing rather than by reading tutorials, and how they were fixed:

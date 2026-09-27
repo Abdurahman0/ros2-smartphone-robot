@@ -18,8 +18,12 @@ SETTLE="${3:-25}"
 DISPLAY_NUM=":99"
 RES="1600x1000x24"
 
+# ROS's setup.bash reads variables it has not defined, so it trips `set -u`.
+# Disable nounset just for the sourcing, then restore it.
+set +u
 source /opt/ros/jazzy/setup.bash
 source ~/ros2_ws/install/setup.bash
+set -u
 
 cleanup() { kill "${RVIZ_PID:-}" "${XVFB_PID:-}" 2>/dev/null || true; }
 trap cleanup EXIT
