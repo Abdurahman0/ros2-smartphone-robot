@@ -1,0 +1,243 @@
+<?xml version="1.0" ?>
+<!--
+  Indoor world for SLAM and navigation testing.
+
+  A world file is SDF, not URDF. SDF describes a whole scene (lights, physics, several
+  models); URDF describes one articulated robot. Gazebo converts the robot's URDF into
+  SDF when it is spawned.
+
+  The <plugin> list below is what actually makes the simulator do anything, and each is
+  required for a specific reason:
+    Physics           steps the dynamics. Without it nothing moves.
+    UserCommands      lets other processes spawn and delete models, which is how the
+                      robot gets in here at all.
+    SceneBroadcaster  streams the scene to the GUI. Headless runs still need it for
+                      any client to connect.
+    Sensors           renders the camera and GPU LiDAR. Without it those sensors exist
+                      but publish nothing  - a confusing silent failure.
+    Imu               ticks the IMU sensor, same story.
+    Contact           reports collisions.
+
+  Room layout: an 8 x 8 m box with an L-shaped interior partition and a few
+  pillars and crates. The partition matters: it forces the robot to drive out of line
+  of sight of where it started, so returning later is a genuine LOOP CLOSURE rather
+  than a trivial re-observation.
+-->
+<sdf version="1.10">
+  <world name="indoor">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+
+    <gravity>0 0 -9.8</gravity>
+
+    <scene>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.75 0.8 0.88 1</background>
+      <grid>false</grid>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.3 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>40 40</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>40 40</size></plane></geometry>
+          <material>
+            <ambient>0.35 0.35 0.38 1</ambient>
+            <diffuse>0.45 0.45 0.48 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_north">
+      <static>true</static>
+      <pose>4.075 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 8.3 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 8.3 1.0</size></box></geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_south">
+      <static>true</static>
+      <pose>-4.075 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 8.3 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 8.3 1.0</size></box></geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_east">
+      <static>true</static>
+      <pose>0 4.075 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>8.3 0.15 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>8.3 0.15 1.0</size></box></geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_west">
+      <static>true</static>
+      <pose>0 -4.075 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>8.3 0.15 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>8.3 0.15 1.0</size></box></geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="partition_a">
+      <static>true</static>
+      <pose>1.0 -1.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 3.0 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 3.0 1.0</size></box></geometry>
+          <material>
+            <ambient>0.6 0.6 0.65 1</ambient>
+            <diffuse>0.6 0.6 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="partition_b">
+      <static>true</static>
+      <pose>2.0 0.5 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2.0 0.15 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2.0 0.15 1.0</size></box></geometry>
+          <material>
+            <ambient>0.6 0.6 0.65 1</ambient>
+            <diffuse>0.6 0.6 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="pillar_1">
+      <static>true</static>
+      <pose>-2.0 2.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.25</radius><length>1.0</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.25</radius><length>1.0</length></cylinder></geometry>
+          <material>
+            <ambient>0.8 0.4 0.2 1.0</ambient>
+            <diffuse>0.8 0.4 0.2 1.0</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="pillar_2">
+      <static>true</static>
+      <pose>-2.5 -2.5 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.2</radius><length>1.0</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.2</radius><length>1.0</length></cylinder></geometry>
+          <material>
+            <ambient>0.8 0.4 0.2 1.0</ambient>
+            <diffuse>0.8 0.4 0.2 1.0</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="crate_1">
+      <static>true</static>
+      <pose>2.5 -2.5 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material>
+            <ambient>0.5 0.35 0.2 1</ambient>
+            <diffuse>0.5 0.35 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="crate_2">
+      <static>true</static>
+      <pose>-0.5 3.0 0.3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.6 0.4 0.6</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.6 0.4 0.6</size></box></geometry>
+          <material>
+            <ambient>0.5 0.35 0.2 1</ambient>
+            <diffuse>0.5 0.35 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

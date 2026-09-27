@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<!--
+  Reusable inertia macros.
+
+  Every link that the physics engine must move needs an <inertial> block: a mass and a
+  3x3 inertia tensor describing how that mass is distributed. RViz ignores it, but
+  Gazebo does not: a link with a wrong or missing inertia behaves absurdly  - it
+  vibrates, sinks through the floor, or launches the robot into the air. This is the
+  single most common reason a URDF "works in RViz but explodes in Gazebo".
+
+  Rather than hand-computing tensors (and getting them wrong), these macros apply the
+  standard formulas for uniform-density primitives.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Solid box of dimensions x*y*z. -->
+  <xacro:macro name="inertial_box" params="mass x y z *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${(mass/12.0)*(y*y + z*z)}" ixy="0.0" ixz="0.0"
+               iyy="${(mass/12.0)*(x*x + z*z)}" iyz="0.0"
+               izz="${(mass/12.0)*(x*x + y*y)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Solid cylinder, symmetry axis along the link's own Z. -->
+  <xacro:macro name="inertial_cylinder" params="mass radius length *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${(mass/12.0)*(3*radius*radius + length*length)}" ixy="0.0" ixz="0.0"
+               iyy="${(mass/12.0)*(3*radius*radius + length*length)}" iyz="0.0"
+               izz="${(mass/2.0)*radius*radius}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Solid sphere. -->
+  <xacro:macro name="inertial_sphere" params="mass radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${(2.0/5.0)*mass*radius*radius}" ixy="0.0" ixz="0.0"
+               iyy="${(2.0/5.0)*mass*radius*radius}" iyz="0.0"
+               izz="${(2.0/5.0)*mass*radius*radius}"/>
+    </inertial>
+  </xacro:macro>
+
+</robot>

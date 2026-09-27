@@ -1,0 +1,24 @@
+# Drive the robot straight ahead for a given distance.
+#
+# An ACTION is the right pattern here, and neither a topic nor a service would do:
+#   * a topic cannot report whether the move finished,
+#   * a service would block the caller for the whole drive and could not be cancelled
+#     halfway, nor report progress.
+# Actions are what Navigation2 itself uses for "go to this pose" -- the same reason
+# applies: the task takes seconds, the caller wants progress, and it must be
+# abortable.
+#
+# An action definition has THREE parts separated by '---': goal, result, feedback.
+
+# ---------- GOAL: sent once by the client to start the task ----------
+float64 distance      # metres to travel; must be > 0
+float64 speed         # m/s; clamped by the server to its safety limit
+---
+# ---------- RESULT: sent once when the task ends (success, abort or cancel) ----------
+float64 distance_travelled   # how far we actually got [m]
+bool success
+string message
+---
+# ---------- FEEDBACK: streamed repeatedly while the task runs ----------
+float64 distance_travelled   # [m]
+float64 percent_complete     # 0-100

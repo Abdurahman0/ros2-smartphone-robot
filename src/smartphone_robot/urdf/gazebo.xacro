@@ -1,0 +1,177 @@
+<?xml version="1.0"?>
+<!--
+  Gazebo-specific additions: simulated sensors and the differential-drive controller.
+
+  WHY THIS IS A SEPARATE FILE
+  ===========================
+  robot.urdf.xacro describes the robot itself: shapes, masses, how the joints connect.
+  That description is equally true of a physical robot. This file describes how a
+  SIMULATOR should pretend to be that robot's electronics. On real hardware nothing
+  here applies; instead, real drivers publish the same topics. Keeping the two apart
+  is what makes the sim-to-real transfer a matter of swapping files rather than
+  rewriting the robot.
+
+  THE KEY IDEA: SIMULATED SENSORS ARE INDISTINGUISHABLE DOWNSTREAM
+  ================================================================
+  Each <sensor> below causes Gazebo to publish exactly the message type a real device
+  would. A real RPLidar driver publishes sensor_msgs/LaserScan on /scan; the gpu_lidar
+  below publishes sensor_msgs/LaserScan on /scan. SLAM subscribes to /scan and cannot
+  tell the difference, because there is no difference in the interface.
+
+  What IS different, and matters honestly:
+    * real sensors have dirtier noise than a Gaussian, plus dropouts and interference
+    * real LiDAR gets confused by glass, mirrors and black surfaces; simulated does not
+    * real wheels slip on dust; simulated slip only if friction is modelled
+    * real timestamps jitter; simulated ones are clean
+  Simulation therefore flatters the algorithms. That is worth stating out loud rather
+  than pretending the results transfer unchanged.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==================== Surface friction ==============================
+       Drive wheels need grip or they spin in place. The caster is deliberately
+       frictionless: a real caster swivels freely, and modelling that properly needs
+       an extra joint, so a slippery sphere is the standard approximation.
+  -->
+  <gazebo reference="left_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel_link">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="caster_link">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo>
+
+  <!-- ==================== Differential drive ============================
+       This is the simulated motor controller. It subscribes to Twist on cmd_vel,
+       converts the requested forward and turn rates into left/right wheel speeds,
+       and spins the two joints named below.
+
+       The inverse-kinematics it applies is the differential-drive equation:
+           v_left  = v - (omega * L / 2)
+           v_right = v + (omega * L / 2)
+       where L is wheel_separation. Those numbers come from the xacro properties, so
+       the controller and the geometry can never drift apart.
+
+       It also publishes ODOMETRY: by integrating the wheel rotations it estimates how
+       far the robot has moved, publishing nav_msgs/Odometry and the odom -> base_footprint
+       transform. This is exactly what wheel encoders provide on real hardware, and it
+       accumulates the same drift  - which is precisely the error SLAM exists to correct.
+  -->
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>${wheel_separation}</wheel_separation>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <odom_publish_frequency>30</odom_publish_frequency>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>/tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+    </plugin>
+
+    <!-- Publishes the wheel joint angles, so robot_state_publisher can complete the
+         TF tree. This replaces joint_state_publisher_gui from the display launch:
+         in simulation the angles are real simulated values, not slider positions. -->
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+  </gazebo>
+
+  <!-- ==================== 2D LiDAR ======================================
+       gpu_lidar casts 360 rays per revolution on the GPU and reports the distance to
+       the first surface each one hits. That array becomes sensor_msgs/LaserScan.
+
+       Parameters chosen to match an RPLidar A1, a common hobby unit, so the numbers
+       stay honest if this is ever ported to hardware:
+         360 samples, 10 Hz, 0.12 - 12 m range.
+       The Gaussian noise is what stops SLAM from seeing an impossibly perfect world.
+  -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <update_rate>10</update_rate>
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <gz_frame_id>lidar_link</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.141592</min_angle>
+            <max_angle>3.141592</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.12</min>
+          <max>12.0</max>
+          <resolution>0.015</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- ==================== Camera ========================================
+       Note gz_frame_id points at camera_optical_link, NOT camera_link. Image data must
+       be stamped with the optical frame, or every downstream projection from pixels to
+       3D is rotated 90 degrees. See the comment on camera_optical_joint in
+       robot.urdf.xacro.
+  -->
+  <gazebo reference="camera_link">
+    <sensor name="camera" type="camera">
+      <topic>camera/image_raw</topic>
+      <update_rate>15</update_rate>
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <gz_frame_id>camera_optical_link</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.089</horizontal_fov>   <!-- ~62 deg, typical webcam -->
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>20.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- ==================== IMU ===========================================
+       Publishes sensor_msgs/Imu: angular velocity and linear acceleration.
+
+       This is the simulated counterpart of the SMARTPHONE's IMU. Having both means the
+       phone's real measurements can be compared against a known-correct reference,
+       which is a far more interesting demonstration than either alone.
+  -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <update_rate>50</update_rate>
+      <always_on>true</always_on>
+      <gz_frame_id>imu_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+</robot>

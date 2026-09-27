@@ -1,0 +1,75 @@
+# ros_gz_bridge topic map.
+#
+# Gazebo and ROS 2 are separate processes speaking different protocols: Gazebo uses
+# gz-transport with gz.msgs types, ROS 2 uses DDS with ROS message types. The bridge is
+# the translator, and nothing crosses between them unless it is listed here.
+#
+# This file IS the simulation/reality boundary. Every entry marked GZ_TO_ROS is a
+# simulated sensor pretending to be real hardware; on a physical robot the same ROS
+# topic would be published by an actual driver and this whole file would be deleted.
+#
+# direction:
+#   GZ_TO_ROS  sensor data flowing out of the simulator
+#   ROS_TO_GZ  commands flowing into it
+#   BIDIRECTIONAL  both (rarely what you want; it can create feedback loops)
+
+# Simulation time. Everything else depends on this: with use_sim_time=true, every ROS
+# node takes its clock from here instead of the wall clock. Without it, SLAM and Nav2
+# compare sensor stamps against wall time, decide the data is from the future, and
+# silently discard it.
+- ros_topic_name: "clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# Velocity commands into the simulated motor controller. The one ROS_TO_GZ entry:
+# this is the robot's only actuator.
+- ros_topic_name: "cmd_vel"
+  gz_topic_name: "/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# Wheel odometry, integrated from the simulated wheel rotations. Equivalent to what
+# encoders provide on real hardware, drift included.
+- ros_topic_name: "odom"
+  gz_topic_name: "/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# The odom -> base_footprint transform, published by the diff drive plugin.
+- ros_topic_name: "tf"
+  gz_topic_name: "/tf"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+# Wheel joint angles, so robot_state_publisher can complete the TF tree.
+- ros_topic_name: "joint_states"
+  gz_topic_name: "/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+# 2D LiDAR. This is the topic SLAM and Nav2 consume.
+- ros_topic_name: "scan"
+  gz_topic_name: "/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+# Simulated IMU, for comparison against the smartphone's real one later.
+- ros_topic_name: "imu"
+  gz_topic_name: "/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# Camera intrinsics. Needed by anything that projects pixels into 3D.
+- ros_topic_name: "camera/camera_info"
+  gz_topic_name: "/camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

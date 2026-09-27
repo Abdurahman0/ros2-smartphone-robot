@@ -1,0 +1,108 @@
+# slam_toolbox, online asynchronous mapping mode.
+#
+# WHAT SLAM ACTUALLY DOES HERE
+# ============================
+# The robot already has odometry from its wheels, so why is SLAM needed? Because wheel
+# odometry DRIFTS: small errors in wheel radius, slip and rounding accumulate, and after
+# a few minutes the robot's believed position is metres from the truth. Odometry is
+# smooth but wrong; it has no way to notice.
+#
+# slam_toolbox fixes this by SCAN MATCHING. Each new laser scan is aligned against the
+# scans already collected: "given what I see now, where must I be for this to line up
+# with what I saw before?" That correction is published as the map -> odom transform.
+#
+# Hence the standard three-frame chain, and why each link exists:
+#
+#     map  ->  odom  ->  base_footprint
+#      |         |            |
+#      |         |            +-- the robot, moved by the wheels
+#      |         +-- smooth, continuous, drifts.  Published by the diff drive plugin.
+#      +-- jumpy but globally correct. Published by SLAM; it is exactly the accumulated
+#          odometry error, corrected. When SLAM recognises a place it has been before
+#          (LOOP CLOSURE) this transform jumps, which is normal and desirable.
+#
+# Nothing ever publishes map -> base_footprint directly. Two publishers on one frame
+# would be a conflict; instead the correction is inserted upstream of odom.
+
+slam_toolbox:
+  ros__parameters:
+
+    # ---- Frames and topics ----
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    mode: mapping              # 'mapping' builds a map; 'localization' reuses a saved one
+
+    # Must be true under Gazebo: timestamps come from /clock, not the wall clock.
+    use_sim_time: true
+
+    # ---- Map output ----
+    resolution: 0.05           # [m/cell]. 5 cm is the usual indoor compromise: fine
+                               # enough for doorways, cheap enough to plan on.
+    max_laser_range: 12.0      # must match the LiDAR's real maximum
+    map_update_interval: 2.0   # [s] how often the occupancy grid is republished
+
+    transform_publish_period: 0.02   # [s] -> 50 Hz map->odom. Nav2 wants this fast.
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+
+    # ---- When to take a new keyframe ----
+    # Scans are only added after the robot has actually moved. Adding a scan every
+    # cycle while standing still would bloat the graph and bias the optimiser.
+    minimum_travel_distance: 0.3     # [m]
+    minimum_travel_heading: 0.3      # [rad]
+    minimum_time_interval: 0.5       # [s]
+    throttle_scans: 1
+
+    # ---- Scan matching ----
+    use_scan_matching: true
+    use_scan_barycenter: true
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+
+    # ---- Loop closure ----
+    # The part that makes this SLAM rather than dead reckoning. When the robot returns
+    # to a previously mapped area, the whole pose graph is re-optimised and past errors
+    # are corrected retroactively -- the map visibly snaps into alignment.
+    do_loop_closing: true
+    loop_search_maximum_distance: 3.0
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # ---- Correlation search windows ----
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # ---- Pose graph optimiser ----
+    # Ceres solves the least-squares problem over all keyframe poses at once.
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ---- Scan matcher penalties ----
+    # How much the matcher is allowed to disagree with odometry. Too loose and the map
+    # smears; too tight and genuine corrections get suppressed.
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
+
+    enable_interactive_mode: true
+    debug_logging: false
