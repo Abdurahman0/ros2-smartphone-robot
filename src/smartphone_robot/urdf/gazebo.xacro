@@ -77,6 +77,32 @@
       <child_frame_id>base_footprint</child_frame_id>
     </plugin>
 
+    <!-- GROUND TRUTH pose, taken straight from the physics engine.
+         =============================================================
+         This publishes where the robot ACTUALLY is, with no sensors and no estimation
+         involved. It is the one thing simulation offers that hardware does not: knowing
+         the true answer. On a real robot you would need a motion-capture rig costing
+         more than the robot to get this.
+
+         It exists so localisation can be MEASURED rather than judged by eye: compare
+         what AMCL believes against this, and the difference is the error, in metres.
+
+         Two deliberate choices:
+           * it publishes to its own topic, never to /odom, so nothing in the navigation
+             stack can consume it by accident. A robot secretly navigating on ground
+             truth would look flawless and prove nothing.
+           * no tf_topic, for the same reason  - a second, perfect source of the robot's
+             pose in TF would silently override the estimated one.
+    -->
+    <plugin filename="gz-sim-odometry-publisher-system"
+            name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>world</odom_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <odom_topic>ground_truth/odom</odom_topic>
+      <odom_publish_frequency>20</odom_publish_frequency>
+      <dimensions>3</dimensions>
+    </plugin>
+
     <!-- Publishes the wheel joint angles, so robot_state_publisher can complete the
          TF tree. This replaces joint_state_publisher_gui from the display launch:
          in simulation the angles are real simulated values, not slider positions. -->

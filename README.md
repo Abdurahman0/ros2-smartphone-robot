@@ -100,6 +100,7 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 │   ├── record_demo.sh                 # the demo video, same way
 │   ├── bake_rviz_geometry.sh          # let RViz write its own panel layout
 │   ├── check_xml.py                   # catch the '--' in XML comments trap
+│   ├── experiment_beam_count.sh       # controlled AMCL sweep against ground truth
 │   └── stop_all.sh                    # clean shutdown (see Limitations)
 ├── src/
 │   ├── smartphone_robot_interfaces/   # custom action definitions (ament_cmake)
@@ -116,6 +117,7 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 │       ├── worlds/indoor.world        # 8×8 m room with partition and obstacles
 │       ├── maps/                      # map produced by SLAM
 │       └── rviz/                      # three RViz configurations
+├── results/                           # localisation-error CSVs from the experiments
 ├── docs/                              # architecture diagrams (SVG)
 └── screenshots/
 ```
@@ -222,23 +224,67 @@ Measured in the 8 × 8 m `indoor.world`, all verified from live topic output:
 | **Navigation** | consecutive goals all `SUCCEEDED` with **0 recovery behaviours** and `Failed to make progress: 0`; final position error 0.16–0.20 m against a 0.20 m tolerance |
 | Velocity control | commanded 10 Hz measured at 9.999 Hz; 20 Hz at 20.00 Hz |
 
-### How localisation accuracy was measured
+## Measuring, Not Demonstrating
 
-Rather than judging alignment by eye, each laser return is transformed into the map
-frame through TF and the occupancy grid is sampled at that point:
+A demonstration answers "does it work?" — and a yes tells you very little, least of all
+whether a change made things better or worse. The most useful thing simulation offers is
+something hardware cannot: **ground truth.** Gazebo knows exactly where the robot is.
+On a real robot, learning that needs a motion-capture rig costing more than the robot.
 
-| | Before tuning | After tuning |
-|---|---|---|
-| Returns landing exactly on a wall cell | 24.4 % | **82.8 %** |
-| Within one cell (≤ 10 cm) | 28.1 % | 16.9 % |
-| More than 10 cm off | 32.8 % | **0.3 %** |
-| Falling outside the map | 14.7 % | **0 %** |
-| Mean error | 7.9 cm | **0.9 cm** |
+`localization_eval` exploits that. It subscribes to what AMCL *believes*
+(`/amcl_pose`) and to where the robot *is* (`/ground_truth/odom`, published by an
+`OdometryPublisher` attached to the model), transforms the truth into the map frame, and
+logs the difference at 5 Hz to CSV.
 
-The fix was raising AMCL's `max_beams` from 60 to 180. With only 60 of the 360 returns
-used, the filter had too little angular information to pin down heading, and a 2° heading
-error displaces a return 7 m away by 24 cm — which is exactly what "the laser does not
-line up with the walls" looks like.
+Ground truth is deliberately kept out of `/tf` and off `/odom`. A robot that quietly
+navigated on its true pose would look flawless and prove nothing.
+
+### Experiment: how many laser beams does AMCL need?
+
+AMCL subsamples the LiDAR's 360 returns down to `max_beams` before matching them against
+the map. `scripts/experiment_beam_count.sh` runs the **same four navigation goals** for
+each setting, with the map, world, spawn pose and controller all held fixed, and records
+the error against ground truth.
+
+| `max_beams` | samples | position mean | median | 95th pct | heading mean |
+|---|---|---|---|---|---|
+| 30 | 596 | 9.7 cm | 9.1 cm | 18.9 cm | 4.70° |
+| 180 | 711 | 9.2 cm | 7.9 cm | 19.7 cm | 5.14° |
+| 360 | 712 | **8.3 cm** | **7.7 cm** | **17.0 cm** | **4.44°** |
+
+All twelve goals succeeded, in every configuration.
+
+**The result is mostly a negative one, and that is the point.** Using all 360 returns
+instead of 30 improves mean position error by about 15 %, from 9.7 cm to 8.3 cm — real,
+monotonic, and far smaller than expected. Between 30 and 180 the difference is within
+run-to-run spread. In a room this rich in features, beam count is simply not the limiting
+factor; at roughly two map cells, the error is dominated by the 5 cm map resolution and
+the quality of the SLAM map itself.
+
+> **A correction.** An earlier version of this README claimed that raising `max_beams`
+> from 60 to 180 cut mean error from 7.9 cm to 0.9 cm. That claim came from comparing two
+> runs that differed in *many* ways at once — different map, different world, different
+> SLAM keyframe density, different AMCL motion-noise parameters — and attributing the
+> whole improvement to one of them. The controlled experiment above does not support it.
+> The claim is withdrawn; the measurement tooling that disproved it is the more useful
+> result.
+
+### A second check: does the laser line up with the map?
+
+An independent check on the same question. Each return is transformed into the map frame
+and the occupancy grid is sampled at that point:
+
+| | Value |
+|---|---|
+| Returns landing exactly on a mapped wall cell | 76–83 % |
+| Within one cell (≤ 10 cm) | 17–41 % |
+| Falling outside the map | **0 %** |
+| Mean error | 0.9 cm stationary, 2.7 cm while driving |
+
+This agrees with the ground-truth figures: the residual is about one map cell, which is
+the floor set by a 5 cm grid rather than a defect in the estimator. AMCL's own claimed
+standard deviation (~10 cm) also tracks its true error closely, meaning the filter is
+well calibrated — it is neither overconfident nor needlessly vague.
 
 ![Simulated world](screenshots/07_gazebo_world.png)
 *The Gazebo world: an 8 × 8 m room with an L-shaped partition, pillars, crates, a table
@@ -311,8 +357,10 @@ Problems that were found by testing rather than by reading tutorials, and how th
   came up with an empty `yaml_filename`, AMCL logged *"Waiting for map...."* forever, and
   the whole navigation bringup aborted because `global_costmap` could never find the `map`
   frame. Fixed by injecting the path with `RewrittenYaml`.
-- **"The laser does not line up with the walls" had two separate causes.** One was real
-  (AMCL using 60 of 360 beams, above). The other was not: RViz draws the map at z = 0 but
+- **"The laser does not line up with the walls" had two separate causes, and the first
+  diagnosis was wrong.** The obvious suspect was AMCL's beam count; a controlled sweep
+  later showed beam count barely matters here (see Measuring, Not Demonstrating). The
+  second cause was not a localisation problem at all: RViz draws the map at z = 0 but
   laser returns at the LiDAR's height of 0.17 m, so with a tilted camera the returns are
   projected outward and appear offset — badly at the edges of the view, not at all near
   the centre, which is why it looked intermittent. The RViz configs now default to a

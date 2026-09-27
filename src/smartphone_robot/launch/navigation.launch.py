@@ -64,6 +64,9 @@ def generate_launch_description():
     gz_args_arg = DeclareLaunchArgument('gz_args', default_value='-r -v 3 -s')
     rviz_arg = DeclareLaunchArgument('rviz', default_value='true')
     map_arg = DeclareLaunchArgument('map', default_value=map_file)
+    # Exposed so an experiment can swap the whole Nav2 configuration without editing
+    # the installed file. Used by scripts/experiment_beam_count.sh.
+    params_arg = DeclareLaunchArgument('params_file', default_value=nav2_params)
 
     # Scoped so the 'rviz' argument below does not leak into the included launch file
     # and start a second RViz. Launch configurations are global by default.
@@ -91,7 +94,7 @@ def generate_launch_description():
     # The map path is injected INTO the parameter file rather than passed as nav2's
     # 'map' launch argument, because map_server reads yaml_filename from its parameters.
     configured_params = RewrittenYaml(
-        source_file=nav2_params,
+        source_file=LaunchConfiguration('params_file'),
         root_key='',
         param_rewrites={'yaml_filename': LaunchConfiguration('map')},
         convert_types=True,
@@ -166,7 +169,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        gz_args_arg, rviz_arg, map_arg,
+        gz_args_arg, rviz_arg, map_arg, params_arg,
         simulation,
         # Delayed until the robot exists and is publishing /scan and TF. AMCL started
         # before any transform is available fails its first updates and logs a wall of

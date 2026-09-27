@@ -73,3 +73,19 @@
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
+
+# Ground truth: the robot's TRUE pose, straight from the physics engine.
+#
+# Published by an OdometryPublisher system attached to the robot (see gazebo.xacro), so
+# it arrives as a named, typed nav_msgs/Odometry rather than an anonymous array of
+# poses. The world's raw /world/indoor/dynamic_pose/info topic carries the same numbers,
+# but the gz -> ROS conversion drops the model names, leaving only positional indices to
+# guess from -- fragile, and it silently breaks the moment a model is added to the world.
+#
+# Nothing in the navigation stack subscribes to this. It exists purely so the evaluation
+# node can compare AMCL's estimate against the truth.
+- ros_topic_name: "ground_truth/odom"
+  gz_topic_name: "/ground_truth/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS

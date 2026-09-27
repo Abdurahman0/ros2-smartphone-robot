@@ -44,6 +44,7 @@ setup(
             'velocity_monitor = smartphone_robot.velocity_monitor:main',
             'drive_distance_server = smartphone_robot.drive_distance_server:main',
             'wander_node = smartphone_robot.wander_node:main',
+            'localization_eval = smartphone_robot.localization_eval:main',
         ],
     },
 )

@@ -24,8 +24,11 @@ is a classic and very confusing bug: TF lookups start failing with "extrapolatio
 the future" because that node's timestamps come from a different clock.
 """
 
+import subprocess
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription, LogInfo,
+                            Shutdown, TimerAction)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -35,7 +38,43 @@ from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import Command
 
 
+def _simulation_already_running() -> bool:
+    """True if a gz sim process is already up.
+
+    Running two simulations at once is not an error anyone notices immediately, and the
+    symptoms are baffling: two /clock publishers make simulated time jump backwards, TF
+    buffers clear themselves, the robot appears to teleport, and Nav2 aborts goals with
+    transform errors that look like a tuning problem. It happened here simply because
+    two people started the same launch file a few minutes apart.
+
+    Refusing to start the second one turns a confusing failure into a clear message.
+    """
+    try:
+        return subprocess.run(['pgrep', '-f', 'gz sim'],
+                              capture_output=True).returncode == 0
+    except Exception:
+        return False   # never block a launch because the check itself failed
+
+
 def generate_launch_description():
+    if _simulation_already_running():
+        return LaunchDescription([
+            LogInfo(msg=[
+                '\n',
+                '======================================================================\n',
+                ' A simulation is ALREADY RUNNING.\n',
+                '\n',
+                ' Starting a second one gives two /clock publishers, which makes\n',
+                ' simulated time jump backwards. Everything downstream then fails in\n',
+                ' ways that look like bugs: the robot teleports, TF buffers clear, and\n',
+                ' navigation goals abort with transform errors.\n',
+                '\n',
+                ' Stop the running one first:   bash scripts/stop_all.sh\n',
+                '======================================================================\n',
+            ]),
+            Shutdown(reason='simulation already running'),
+        ])
+
     pkg_share = FindPackageShare('smartphone_robot')
 
     world_file = PathJoinSubstitution([pkg_share, 'worlds', 'indoor.world'])
