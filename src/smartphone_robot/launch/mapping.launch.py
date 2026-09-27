@@ -33,6 +33,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     pkg_share = FindPackageShare('smartphone_robot')
     slam_params = PathJoinSubstitution([pkg_share, 'config', 'slam_toolbox.yaml'])
+    node_params = PathJoinSubstitution([pkg_share, 'config', 'velocity_params.yaml'])
     rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'mapping.rviz'])
 
     gz_args_arg = DeclareLaunchArgument(
@@ -97,6 +98,19 @@ def generate_launch_description():
             'use_sim_time': True,
             'autostart': True,
             'node_names': ['slam_toolbox'],
+            # Bond checking disabled.
+            #
+            # The manager normally keeps a heartbeat "bond" with each managed node and
+            # declares it dead if the beat is late. slam_toolbox never establishes that
+            # bond, so the manager reports "unable to be reached ... Aborting bringup"
+            # regardless of the timeout -- raising it to 20 s changed nothing. Meanwhile
+            # SLAM is configured, activated and mapping perfectly well, because the
+            # configure/activate transitions happened before the bond was ever checked.
+            #
+            # 0.0 disables the check. What is lost is automatic detection of a crashed
+            # slam_toolbox; here that is worth trading for a bringup that does not report
+            # a failure that has not happened.
+            'bond_timeout': 0.0,
         }],
     )
 
@@ -110,7 +124,7 @@ def generate_launch_description():
         executable='wander_node',
         name='wander_node',
         output='screen',
-        parameters=[{'use_sim_time': True}],
+        parameters=[node_params, {'use_sim_time': True}],
     )], condition=IfCondition(LaunchConfiguration('wander')))
 
     rviz = Node(

@@ -84,7 +84,7 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 | Simulation | Gazebo Harmonic 8.15, `ros_gz_bridge`, SDF worlds |
 | Robot description | URDF + xacro, TF2, `robot_state_publisher` |
 | Mapping | `slam_toolbox` (async, pose-graph SLAM with Ceres) |
-| Navigation | Navigation2 — NavFn global planner, DWB local controller, AMCL, costmaps |
+| Navigation | Navigation2 — NavFn global planner, Regulated Pure Pursuit controller, AMCL, costmaps |
 | Vision | OpenCV 4.6, `cv_bridge` *(scaffolded, not yet implemented)* |
 | Visualisation | RViz2, `rqt_graph`, `tf2_echo`, `ros2 topic hz/echo` |
 | Environment | Docker, Xvfb (headless screenshots) |
@@ -214,9 +214,42 @@ Measured in the 8 × 8 m `indoor.world`, all verified from live topic output:
 | Simulated camera | 640 × 480 `rgb8`, 15 Hz |
 | Simulated IMU | 50 Hz |
 | Odometry | 30 Hz, full `odom → base_footprint` TF |
-| **SLAM map** | 8.1 × 8.1 m at 0.05 m/cell, **97.6 % of the room explored**, all walls, both pillars and both crates reconstructed |
-| **Navigation** | goal `(5.0, 5.0)` reached at `(4.85, 4.88)` — **0.17 m error** inside a 0.20 m tolerance, `SUCCEEDED`, **0 recovery behaviours** |
+| **SLAM map** | 8.2 × 8.8 m at 0.05 m/cell; every wall, the L-partition, both pillars, three crates, the planter and even the four table legs reconstructed |
+| **Localisation accuracy** | **76–83 % of laser returns land exactly on a mapped wall cell, 0 % fall outside the map, mean error 0.9–2.7 cm** (measured, see below) |
+| **Navigation** | consecutive goals all `SUCCEEDED` with **0 recovery behaviours** and `Failed to make progress: 0`; final position error 0.16–0.20 m against a 0.20 m tolerance |
 | Velocity control | commanded 10 Hz measured at 9.999 Hz; 20 Hz at 20.00 Hz |
+
+### How localisation accuracy was measured
+
+Rather than judging alignment by eye, each laser return is transformed into the map
+frame through TF and the occupancy grid is sampled at that point:
+
+| | Before tuning | After tuning |
+|---|---|---|
+| Returns landing exactly on a wall cell | 24.4 % | **82.8 %** |
+| Within one cell (≤ 10 cm) | 28.1 % | 16.9 % |
+| More than 10 cm off | 32.8 % | **0.3 %** |
+| Falling outside the map | 14.7 % | **0 %** |
+| Mean error | 7.9 cm | **0.9 cm** |
+
+The fix was raising AMCL's `max_beams` from 60 to 180. With only 60 of the 360 returns
+used, the filter had too little angular information to pin down heading, and a 2° heading
+error displaces a return 7 m away by 24 cm — which is exactly what "the laser does not
+line up with the walls" looks like.
+
+![Simulated world](screenshots/07_gazebo_world.png)
+*The Gazebo world: an 8 × 8 m room with an L-shaped partition, pillars, crates, a table
+and a planter. Rendered by a fixed camera sensor inside the simulation — Gazebo's GUI
+cannot run on a virtual framebuffer, but its sensors render on the GPU regardless.*
+
+![Robot](screenshots/07_robot_gazebo.png)
+*The robot in simulation. The orange band on the LiDAR marks the scan plane at 0.17 m:
+anything below that line is invisible to a 2D laser, which is why the map shows the
+table's four legs but not its top.*
+
+![Robot camera](screenshots/07_robot_camera_view.png)
+*A frame from the robot's own camera, taken straight off `/camera/image_raw` — the full
+path from Gazebo through the bridge into ROS 2.*
 
 ![SLAM in progress](screenshots/08_slam_rviz_live.png)
 *Live SLAM: laser returns (red) landing on the walls of the map being built.*
@@ -275,6 +308,32 @@ Problems that were found by testing rather than by reading tutorials, and how th
   came up with an empty `yaml_filename`, AMCL logged *"Waiting for map...."* forever, and
   the whole navigation bringup aborted because `global_costmap` could never find the `map`
   frame. Fixed by injecting the path with `RewrittenYaml`.
+- **"The laser does not line up with the walls" had two separate causes.** One was real
+  (AMCL using 60 of 360 beams, above). The other was not: RViz draws the map at z = 0 but
+  laser returns at the LiDAR's height of 0.17 m, so with a tilted camera the returns are
+  projected outward and appear offset — badly at the edges of the view, not at all near
+  the centre, which is why it looked intermittent. The RViz configs now default to a
+  near-top-down view so parallax cannot be mistaken for a localisation error.
+- **DWB stalled in tight spaces.** Near inflated obstacles every sampled trajectory
+  scored badly, so the controller commanded almost nothing and the progress checker
+  reported `Failed to make progress`. Switching to Regulated Pure Pursuit — fewer
+  parameters, designed for differential drives — and reducing the inflation radius from
+  0.55 m to 0.45 m took recoveries from 2 per goal to 0.
+- **nav2_lifecycle_manager reported SLAM as dead while it was working.** slam_toolbox
+  never establishes the heartbeat bond the manager expects, so the manager logged
+  `unable to be reached ... Aborting bringup` at any timeout. Configure and activate had
+  already succeeded, so SLAM mapped perfectly throughout. Bond checking is now disabled
+  for that node.
+- **An unused Nav2 server stopped navigation from starting, silently.** `nav2_bringup`
+  brings up `docking_server`, `route_server` and `waypoint_follower` as well as the
+  planning stack. This project uses none of them, but they still have to be given valid
+  parameters or the lifecycle manager aborts the whole bringup — and worse, under load
+  `docking_server` once timed out sending its lifecycle response, so the manager waited
+  forever, the navigation servers never activated, and every goal came back
+  `Action server is inactive. Rejecting the goal.` with no error logged anywhere.
+  `navigation.launch.py` now lists the seven nodes this project actually uses, which
+  removes the failure mode and makes the /cmd_vel chain visible instead of buried in an
+  included launch file.
 - **Stale processes corrupt simulated time.** Two surviving `ros_gz_bridge` instances both
   republish `/clock` and `/scan`, producing `Transform data too old` and aborted goals that
   look exactly like a tuning problem. `pkill -x` misses them because `/proc/<pid>/comm` is
@@ -294,7 +353,7 @@ Stated plainly, because they matter for interpreting the results:
 - **`DriveDistance` measures distance open-loop**, as `speed × elapsed_time`. It assumes no
   wheel slip and no acceleration ramp. It should subscribe to `/odom` instead; the action
   *interface* would not change, only the implementation.
-- **Tuned for one room.** Nav2's costmap and DWB parameters were set for an 8 × 8 m indoor
+- **Tuned for one room.** Nav2's costmap and controller parameters were set for an 8 × 8 m indoor
   world and this robot's geometry. They are not general-purpose defaults.
 - **Host resources are the binding constraint.** The development machine has 7.4 GB RAM and
   an integrated GPU, so Gazebo usually runs headless and transform tolerances are raised

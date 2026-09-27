@@ -51,15 +51,19 @@ slam_toolbox:
     # ---- When to take a new keyframe ----
     # Scans are only added after the robot has actually moved. Adding a scan every
     # cycle while standing still would bloat the graph and bias the optimiser.
-    minimum_travel_distance: 0.3     # [m]
-    minimum_travel_heading: 0.3      # [rad]
-    minimum_time_interval: 0.5       # [s]
+    # Tightened from 0.3/0.3. Denser keyframes mean more constraints in the pose graph
+    # and a sharper map -- at 0.3 rad the robot could rotate 17 degrees between scans, so
+    # corners came out smeared and AMCL later had nothing crisp to match against.
+    minimum_travel_distance: 0.15    # [m]
+    minimum_travel_heading: 0.15     # [rad]
+    minimum_time_interval: 0.2       # [s]
     throttle_scans: 1
 
     # ---- Scan matching ----
     use_scan_matching: true
     use_scan_barycenter: true
-    scan_buffer_size: 10
+    # More scans kept for matching: better local consistency, slightly more memory.
+    scan_buffer_size: 20
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5

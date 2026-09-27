@@ -15,9 +15,9 @@ Visualization Manager:
     - Class: rviz_default_plugins/Grid
       Name: Grid
       Enabled: true
-      Cell Size: 0.5
+      Cell Size: 0.25
       Plane Cell Count: 20
-      Color: 160; 160; 164
+      Color: 150; 155; 165
       Line Style:
         Value: Lines
       Reference Frame: <Fixed Frame>
@@ -36,16 +36,16 @@ Visualization Manager:
     - Class: rviz_default_plugins/TF
       Name: TF
       Enabled: true
-      Show Names: true
+      Show Names: false
       Show Axes: true
       Show Arrows: true
-      Marker Scale: 0.3
+      Marker Scale: 0.22
       Update Interval: 0
   Global Options:
     # Everything drawn in RViz is transformed into this frame. base_footprint is on
     # the ground under the robot, so the robot appears to sit on the grid.
     Fixed Frame: base_footprint
-    Background Color: 48; 48; 48
+    Background Color: 236; 238; 242
     Frame Rate: 20
   Tools:
     - Class: rviz_default_plugins/MoveCamera
@@ -56,13 +56,13 @@ Visualization Manager:
     Current:
       Class: rviz_default_plugins/Orbit
       Name: Current View
-      Distance: 1.6
+      Distance: 1.05
       Focal Point:
         X: 0
         Y: 0
         Z: 0.05
-      Pitch: 0.45
-      Yaw: 0.8
+      Pitch: 0.52
+      Yaw: 2.35
       Target Frame: <Fixed Frame>
 Window Geometry:
   Height: 800

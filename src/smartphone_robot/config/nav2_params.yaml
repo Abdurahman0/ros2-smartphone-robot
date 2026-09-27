@@ -38,28 +38,40 @@ amcl:
     robot_model_type: "nav2_amcl::DifferentialMotionModel"
 
     # Particle filter size. More particles localise more reliably but cost CPU.
-    min_particles: 300
-    max_particles: 1500
+    min_particles: 500
+    max_particles: 2000
 
     # Motion noise model: how much the wheel odometry is distrusted. alpha1/2 are
-    # rotation error, alpha3/4 translation error. Simulated odometry is cleaner than
-    # real, so on hardware these usually need raising.
-    alpha1: 0.2
-    alpha2: 0.2
-    alpha3: 0.2
-    alpha4: 0.2
-    alpha5: 0.2
+    # rotation error, alpha3/4 translation error.
+    #
+    # Lowered from the usual 0.2 because simulated wheel odometry is far cleaner than a
+    # real encoder's. Telling the filter to distrust good odometry makes the particle
+    # cloud spread out and the pose estimate jitter. ON REAL HARDWARE THESE MUST GO BACK
+    # UP -- real wheels slip, and an overconfident filter is worse than a vague one.
+    alpha1: 0.1
+    alpha2: 0.1
+    alpha3: 0.1
+    alpha4: 0.1
+    alpha5: 0.1
 
     laser_model_type: "likelihood_field"
     laser_likelihood_max_dist: 2.0
     laser_max_range: 12.0
     laser_min_range: 0.12
-    max_beams: 60
+
+    # Beams used per update, subsampled from the 360 the LiDAR provides.
+    #
+    # This was the cause of a measured localisation error. At 60 beams the filter had too
+    # little angular information to pin down heading, and a 2 degree heading error throws a
+    # return 7 m away sideways by 24 cm -- which is exactly the "laser does not line up
+    # with the walls" symptom. 180 beams costs more CPU and fixes it.
+    max_beams: 180
 
     # Only resample after the robot has actually moved; resampling while stationary
-    # collapses particle diversity and the filter becomes overconfident.
-    update_min_a: 0.2
-    update_min_d: 0.25
+    # collapses particle diversity and the filter becomes overconfident. Tightened so
+    # heading is corrected more often during turns, which is when it drifts most.
+    update_min_a: 0.1
+    update_min_d: 0.15
     resample_interval: 1
     transform_tolerance: 1.0
     recovery_alpha_fast: 0.0
@@ -99,10 +111,15 @@ controller_server:
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      # If the robot has not moved 0.5 m in 10 s it is stuck; trigger recovery rather
-      # than grinding against an obstacle forever.
-      required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      # If the robot has not moved this far in this long it is stuck, and recovery
+      # behaviours run rather than grinding against an obstacle forever.
+      #
+      # Relaxed from 0.5 m / 10 s. A differential-drive robot rotating in place to face a
+      # new path segment legitimately covers no ground for several seconds, and under
+      # simulator lag that stretches further -- so the strict version declared failure on
+      # a robot that was working correctly.
+      required_movement_radius: 0.4
+      movement_time_allowance: 20.0
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -111,58 +128,55 @@ controller_server:
       stateful: true
 
     FollowPath:
-      plugin: "dwb_core::DWBLocalPlanner"
-      # Velocity limits. These must be within what the robot can physically do: too
-      # high and the controller commands motion the base cannot deliver, so it drifts
-      # off the planned path.
-      min_vel_x: 0.0
-      max_vel_x: 0.26
-      min_vel_y: 0.0              # a differential drive cannot move sideways
-      max_vel_y: 0.0
-      max_vel_theta: 1.0
-      min_speed_xy: 0.0
-      max_speed_xy: 0.26
-      min_speed_theta: 0.0
-      acc_lim_x: 2.5
-      acc_lim_y: 0.0
-      acc_lim_theta: 3.2
-      decel_lim_x: -2.5
-      decel_lim_y: 0.0
-      decel_lim_theta: -3.2
+      # Regulated Pure Pursuit, not DWB.
+      #
+      # DWB samples a grid of candidate velocities every cycle and scores them with a
+      # set of weighted critics. It is powerful but has ~20 interacting parameters, and
+      # here it kept reporting "Failed to make progress": in tight spots near inflated
+      # obstacles every candidate scored badly, so it commanded almost nothing and the
+      # progress checker declared the robot stuck.
+      #
+      # RPP works differently: it picks a point on the path a lookahead distance ahead
+      # and steers towards it, "regulating" (slowing) speed on tight curves and near
+      # obstacles. Far fewer parameters, and much better behaved on a differential drive
+      # in confined spaces. It is the current Nav2 recommendation for this robot class.
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
 
-      # DWB samples vx_samples x vtheta_samples candidate velocities per cycle and
-      # simulates each for sim_time seconds.
-      vx_samples: 20
-      vy_samples: 5
-      vtheta_samples: 20
-      sim_time: 1.7
-      linear_granularity: 0.05
-      angular_granularity: 0.025
-      # Raised from the usual 0.2 s. Gazebo on a laptop does not always hold a
-      # real-time factor of 1.0, so transforms can arrive late; at 0.2 s the
-      # controller aborts with "Transform data too old" the moment the machine is
-      # busy. On real hardware, where the clock is the wall clock, 0.2 is fine.
+      desired_linear_vel: 0.26         # [m/s] cruise speed
+      lookahead_dist: 0.6              # [m] how far along the path to aim
+      min_lookahead_dist: 0.3
+      max_lookahead_dist: 0.9
+      lookahead_time: 1.5              # used when scaling lookahead with speed
+      use_velocity_scaled_lookahead_dist: true
+
+      # Slow down on tight curves. Without this the robot carries cruise speed into a
+      # corner and swings wide of the path.
+      use_regulated_linear_velocity_scaling: true
+      regulated_linear_scaling_min_radius: 0.9
+      regulated_linear_scaling_min_speed: 0.25
+
+      # Slow down near obstacles as well as on curves.
+      use_cost_regulated_linear_velocity_scaling: true
+      cost_scaling_dist: 0.4
+      cost_scaling_gain: 1.0
+      inflation_cost_scaling_factor: 3.0
+
+      # Turn on the spot before driving when the path heads sharply away (> 45 deg).
+      # A differential drive can do this; it produces much cleaner starts than arcing.
+      use_rotate_to_heading: true
+      rotate_to_heading_min_angle: 0.785
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 3.2
+
+      # Forward-simulate the command and refuse it if it would collide.
+      use_collision_detection: true
+      max_allowed_time_to_collision_up_to_carrot: 1.0
+
+      allow_reversing: false           # this base has no rear sensor, so never reverse blind
+      min_approach_linear_velocity: 0.05
+      approach_velocity_scaling_dist: 0.6
+      max_robot_pose_search_dist: 10.0
       transform_tolerance: 0.6
-      xy_goal_tolerance: 0.2
-      trans_stopped_velocity: 0.25
-      short_circuit_trajectory_evaluation: true
-      stateful: true
-
-      # Each critic scores candidate trajectories; the weights decide the driving
-      # style. Raise PathAlign to hug the planned route, raise ObstacleFootprint to
-      # give obstacles a wider berth.
-      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign",
-                "PathAlign", "PathDist", "GoalDist"]
-      BaseObstacle.scale: 0.02
-      PathAlign.scale: 32.0
-      PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 24.0
-      GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 32.0
-      GoalDist.scale: 24.0
-      RotateToGoal.scale: 32.0
-      RotateToGoal.slowing_factor: 5.0
-      RotateToGoal.lookahead_time: -1.0
 
 local_costmap:
   local_costmap:
@@ -200,7 +214,11 @@ local_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         # Obstacles are grown by this radius so the planner keeps the robot's BODY
         # clear, not just its centre point. Without inflation the robot clips corners.
-        inflation_radius: 0.55
+        #
+        # 0.45 m, reduced from 0.55: at 0.55 the inflated regions around the partition
+        # and the wall nearly met, leaving no low-cost corridor between them for this
+        # 0.22 m robot. Roughly 2x the robot radius is the usual starting point.
+        inflation_radius: 0.45
         cost_scaling_factor: 3.0
       always_send_full_costmap: true
 
@@ -237,7 +255,7 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.55
+        inflation_radius: 0.45
         cost_scaling_factor: 3.0
       always_send_full_costmap: true
 

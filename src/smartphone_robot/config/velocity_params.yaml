@@ -28,3 +28,14 @@ velocity_monitor:
     # Must be comfortably longer than one publish period (1/20 s here), otherwise
     # the watchdog fires on normal scheduling jitter and cries wolf.
     timeout_sec: 0.75
+
+# Exploration speeds used while mapping. Deliberately slow: slam_toolbox takes a keyframe
+# every 0.15 m / 0.15 rad, so driving slowly gives it more overlapping views of each
+# surface and a visibly sharper map. Fast exploration finishes sooner and maps worse.
+wander_node:
+  ros__parameters:
+    forward_speed: 0.18      # [m/s]
+    turn_speed: 0.5          # [rad/s]
+    stop_distance: 0.60      # [m]
+    clear_distance: 0.95     # [m]
+    control_rate: 10.0

@@ -1,9 +1,32 @@
+# RViz configuration for autonomous navigation.
+#
+# The Tools block is taken from nav2_bringup's own default view, so "Nav2 Goal" behaves
+# exactly as it does in the stock Nav2 demos. It publishes geometry_msgs/PoseStamped on
+# /goal_pose, which bt_navigator subscribes to.
+#
+# USING IT: click "Nav2 Goal", then PRESS on the map, DRAG to set the heading, and
+# release. A single click without dragging sends nothing -- the tool needs the drag to
+# know which way the robot should face on arrival.
+#
+# If a goal is accepted but the robot barely moves, the problem is almost never the tool:
+# check localisation first. The Navigation 2 panel on the left reports whether
+# Navigation and Localization are 'active', and shows recoveries and distance remaining
+# live, which makes that distinction obvious.
+#
+# Only two panels are kept. Tool Properties and Views are not needed for the tools to
+# work, and RViz stores panel sizes in a binary blob this file cannot set, so extra
+# panels just squeeze the Displays tree into an unusable sliver.
 Panels:
   - Class: rviz_common/Displays
     Name: Displays
     Property Tree Widget:
-      Expanded: [/Map1, /GlobalPlan1]
-    Tree Height: 450
+      Expanded:
+        - /Map1
+        - /GlobalPlan1
+      Splitter Ratio: 0.55
+    Tree Height: 640
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
 Visualization Manager:
   Class: ""
   Displays:
@@ -13,6 +36,7 @@ Visualization Manager:
       Cell Size: 1
       Plane Cell Count: 20
       Color: 90; 90; 90
+      Alpha: 0.4
     - Class: rviz_default_plugins/Map
       Name: Map
       Enabled: true
@@ -20,17 +44,18 @@ Visualization Manager:
         Value: /map
         Durability Policy: Transient Local
         Reliability Policy: Reliable
+        Depth: 1
       Color Scheme: map
-      Alpha: 0.8
+      Alpha: 0.9
     - Class: rviz_default_plugins/Map
       Name: GlobalCostmap
-      Enabled: true
+      Enabled: false
       Topic:
         Value: /global_costmap/costmap
         Durability Policy: Transient Local
         Reliability Policy: Reliable
       Color Scheme: costmap
-      Alpha: 0.35
+      Alpha: 0.3
     - Class: rviz_default_plugins/Map
       Name: LocalCostmap
       Enabled: true
@@ -39,7 +64,7 @@ Visualization Manager:
         Durability Policy: Transient Local
         Reliability Policy: Reliable
       Color Scheme: costmap
-      Alpha: 0.6
+      Alpha: 0.55
     - Class: rviz_default_plugins/Path
       Name: GlobalPlan
       Enabled: true
@@ -47,8 +72,9 @@ Visualization Manager:
         Value: /plan
         Durability Policy: Volatile
         Reliability Policy: Reliable
-      Color: 40; 220; 60
-      Line Style: Lines
+      Color: 40; 230; 70
+      Line Style: Billboards
+      Line Width: 0.04
       Alpha: 1
     - Class: rviz_default_plugins/Path
       Name: LocalPlan
@@ -57,8 +83,9 @@ Visualization Manager:
         Value: /local_plan
         Durability Policy: Volatile
         Reliability Policy: Reliable
-      Color: 255; 220; 40
-      Line Style: Lines
+      Color: 255; 200; 40
+      Line Style: Billboards
+      Line Width: 0.03
     - Class: rviz_default_plugins/LaserScan
       Name: LaserScan
       Enabled: true
@@ -66,10 +93,12 @@ Visualization Manager:
         Value: /scan
         Durability Policy: Volatile
         Reliability Policy: Best Effort
-      Size (m): 0.04
-      Style: Points
-      Color: 255; 40; 40
+        Depth: 5
+      Size (m): 0.035
+      Style: Spheres
+      Color: 255; 60; 40
       Color Transformer: FlatColor
+      Decay Time: 0
     - Class: rviz_default_plugins/PoseArray
       Name: AmclParticles
       Enabled: true
@@ -77,9 +106,10 @@ Visualization Manager:
         Value: /particle_cloud
         Durability Policy: Volatile
         Reliability Policy: Best Effort
-      Color: 60; 130; 255
+      Color: 70; 140; 255
       Shape: Arrow (Flat)
-      Arrow Length: 0.15
+      Arrow Length: 0.12
+      Alpha: 0.6
     - Class: rviz_default_plugins/RobotModel
       Name: RobotModel
       Enabled: true
@@ -95,24 +125,61 @@ Visualization Manager:
       Marker Scale: 0.4
   Global Options:
     Fixed Frame: map
-    Background Color: 48; 48; 48
-    Frame Rate: 15
+    Background Color: 40; 42; 48
+    Frame Rate: 20
   Tools:
     - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
     - Class: rviz_default_plugins/SetInitialPose
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.06853891909122467
       Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
         Value: /initialpose
+    - Class: rviz_default_plugins/PublishPoint
+      Single click: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /clicked_point
     - Class: nav2_rviz_plugins/GoalTool
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
       Name: Current View
       Distance: 13
-      Focal Point: {X: 1.0, Y: 1.0, Z: 0}
-      Pitch: 1.35
+      Focal Point:
+        X: 3.0
+        Y: 3.0
+        Z: 0
+      # Pitch is near vertical on purpose. The map is drawn at z=0 but the laser returns
+      # are at the LiDAR's height (z=0.17 m), so with a tilted camera the returns are
+      # projected outward and appear NOT to line up with the walls -- worst at the edges
+      # of the view, fine near the centre. That is parallax, not a localisation error,
+      # but it looks exactly like one. A top-down view removes the ambiguity.
+      Pitch: 1.5500
       Yaw: 3.14
       Target Frame: <Fixed Frame>
+      Near Clip Distance: 0.01
 Window Geometry:
-  Height: 950
-  Width: 1550
+  Height: 1000
+  Width: 1680
+  Displays:
+    collapsed: false
+  Navigation 2:
+    collapsed: false
+  Tool Properties:
+    collapsed: true
+  Views:
+    collapsed: true
+  Selection:
+    collapsed: true

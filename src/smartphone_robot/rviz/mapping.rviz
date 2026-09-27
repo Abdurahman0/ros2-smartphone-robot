@@ -29,8 +29,8 @@ Visualization Manager:
         Value: /scan
         Durability Policy: Volatile
         Reliability Policy: Best Effort
-      Size (m): 0.04
-      Style: Points
+      Size (m): 0.035
+      Style: Spheres
       Color: 255; 40; 40
       Color Transformer: FlatColor
     - Class: rviz_default_plugins/RobotModel
@@ -58,7 +58,7 @@ Visualization Manager:
         Head Length: 0.1
   Global Options:
     Fixed Frame: map
-    Background Color: 48; 48; 48
+    Background Color: 40; 42; 48
     Frame Rate: 15
   Tools:
     - Class: rviz_default_plugins/MoveCamera
@@ -68,8 +68,16 @@ Visualization Manager:
       Class: rviz_default_plugins/Orbit
       Name: Current View
       Distance: 14
-      Focal Point: {X: 0, Y: 0, Z: 0}
-      Pitch: 1.2
+      # The map frame is anchored where SLAM started, i.e. the robot's spawn pose, so
+      # the room extends from about (0,0) to (7,7) in map coordinates. Centring the view
+      # on (3,3) keeps the whole room in frame as it is discovered.
+      Focal Point: {X: 3.0, Y: 3.0, Z: 0}
+      # Pitch is near vertical on purpose. The map is drawn at z=0 but the laser returns
+      # are at the LiDAR's height (z=0.17 m), so with a tilted camera the returns are
+      # projected outward and appear NOT to line up with the walls -- worst at the edges
+      # of the view, fine near the centre. That is parallax, not a localisation error,
+      # but it looks exactly like one. A top-down view removes the ambiguity.
+      Pitch: 1.5500
       Yaw: 3.14
       Target Frame: <Fixed Frame>
 Window Geometry:

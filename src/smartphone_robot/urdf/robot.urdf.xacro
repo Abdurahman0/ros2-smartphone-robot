@@ -58,11 +58,15 @@
   <xacro:property name="PI" value="3.14159265359"/>
 
   <!-- ==================== Materials (RViz colours only) ================== -->
-  <material name="grey">   <color rgba="0.4 0.4 0.4 1.0"/></material>
-  <material name="black">  <color rgba="0.1 0.1 0.1 1.0"/></material>
-  <material name="blue">   <color rgba="0.2 0.3 0.8 1.0"/></material>
-  <material name="red">    <color rgba="0.8 0.2 0.2 1.0"/></material>
-  <material name="white">  <color rgba="0.9 0.9 0.9 1.0"/></material>
+  <material name="chassis">  <color rgba="0.26 0.29 0.36 1.0"/></material>
+  <material name="deck">     <color rgba="0.20 0.58 0.86 1.0"/></material>
+  <material name="tyre">     <color rgba="0.08 0.08 0.09 1.0"/></material>
+  <material name="hub">      <color rgba="0.62 0.64 0.68 1.0"/></material>
+  <material name="grey">     <color rgba="0.45 0.47 0.52 1.0"/></material>
+  <material name="sensor">   <color rgba="0.18 0.19 0.23 1.0"/></material>
+  <material name="lens">     <color rgba="0.10 0.35 0.55 1.0"/></material>
+  <material name="marker">   <color rgba="0.92 0.36 0.18 1.0"/></material>
+  <material name="white">    <color rgba="0.88 0.89 0.92 1.0"/></material>
 
   <!-- ==================== base_footprint =================================
        The tree's root: a massless frame on the GROUND directly below the robot's
@@ -85,12 +89,36 @@
   </joint>
 
   <link name="base_link">
-    <visual>
+    <!-- Several visual elements on one link. URDF allows this, and it costs nothing:
+         collision and inertia are unchanged, so physics and TF are identical. Only
+         what RViz and Gazebo draw is different. -->
+    <visual name="chassis">
       <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
       <geometry>
         <box size="${base_length} ${base_width} ${base_height}"/>
       </geometry>
-      <material name="blue"/>
+      <material name="chassis"/>
+    </visual>
+    <visual name="deck">
+      <origin xyz="-0.01 0 ${base_height + 0.008}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length*0.82} ${base_width*0.88} 0.016"/>
+      </geometry>
+      <material name="deck"/>
+    </visual>
+    <visual name="front_bumper">
+      <origin xyz="${base_length/2 - 0.012} 0 ${base_height*0.42}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.024 ${base_width*0.94} ${base_height*0.55}"/>
+      </geometry>
+      <material name="marker"/>
+    </visual>
+    <visual name="rear_panel">
+      <origin xyz="${-base_length/2 + 0.010} 0 ${base_height*0.5}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.020 ${base_width*0.80} ${base_height*0.6}"/>
+      </geometry>
+      <material name="grey"/>
     </visual>
     <collision>
       <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
@@ -124,11 +152,28 @@
     </joint>
 
     <link name="${prefix}_wheel_link">
-      <visual>
+      <visual name="tyre">
         <geometry>
           <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
         </geometry>
-        <material name="black"/>
+        <material name="tyre"/>
+      </visual>
+      <!-- A hub that is visibly off-centre in rotation, so wheel spin is obvious in
+           RViz and in the Gazebo GUI. Useful when checking that the differential drive
+           plugin is actually turning the joints. -->
+      <visual name="hub">
+        <origin xyz="0 0 ${wheel_width/2 + 0.001}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius*0.45}" length="0.004"/>
+        </geometry>
+        <material name="hub"/>
+      </visual>
+      <visual name="spoke">
+        <origin xyz="${wheel_radius*0.6} 0 ${wheel_width/2 + 0.002}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${wheel_radius*0.55} 0.008 0.004"/>
+        </geometry>
+        <material name="marker"/>
       </visual>
       <collision>
         <geometry>
@@ -182,11 +227,28 @@
   </joint>
 
   <link name="lidar_link">
-    <visual>
+    <visual name="lidar_body">
       <geometry>
         <cylinder radius="${lidar_radius}" length="${lidar_height}"/>
       </geometry>
-      <material name="red"/>
+      <material name="sensor"/>
+    </visual>
+    <!-- The orange band sits at the scan plane, which makes it easy to see at a glance
+         how high the LiDAR actually measures and what it can therefore never see:
+         anything below this line is invisible to a 2D laser. -->
+    <visual name="scan_band">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${lidar_radius*1.06}" length="0.008"/>
+      </geometry>
+      <material name="marker"/>
+    </visual>
+    <visual name="lidar_cap">
+      <origin xyz="0 0 ${lidar_height/2 + 0.004}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${lidar_radius*0.8}" length="0.008"/>
+      </geometry>
+      <material name="grey"/>
     </visual>
     <collision>
       <geometry>
@@ -218,9 +280,14 @@
   </joint>
 
   <link name="camera_link">
-    <visual>
-      <geometry><box size="0.02 0.06 0.02"/></geometry>
-      <material name="white"/>
+    <visual name="camera_housing">
+      <geometry><box size="0.022 0.070 0.026"/></geometry>
+      <material name="sensor"/>
+    </visual>
+    <visual name="camera_lens">
+      <origin xyz="0.013 0 0" rpy="0 ${PI/2} 0"/>
+      <geometry><cylinder radius="0.009" length="0.006"/></geometry>
+      <material name="lens"/>
     </visual>
     <collision>
       <geometry><box size="0.02 0.06 0.02"/></geometry>
