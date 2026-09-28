@@ -35,8 +35,8 @@ Visualization Manager:
       Enabled: true
       Cell Size: 1
       Plane Cell Count: 20
-      Color: 90; 90; 90
-      Alpha: 0.4
+      Color: 70; 70; 70
+      Alpha: 0.2
     - Class: rviz_default_plugins/Map
       Name: Map
       Enabled: true
@@ -47,15 +47,6 @@ Visualization Manager:
         Depth: 1
       Color Scheme: map
       Alpha: 0.9
-    - Class: rviz_default_plugins/Map
-      Name: GlobalCostmap
-      Enabled: false
-      Topic:
-        Value: /global_costmap/costmap
-        Durability Policy: Transient Local
-        Reliability Policy: Reliable
-      Color Scheme: costmap
-      Alpha: 0.3
     - Class: rviz_default_plugins/Map
       Name: LocalCostmap
       Enabled: false
@@ -117,12 +108,6 @@ Visualization Manager:
       Description Topic:
         Value: /robot_description
       Alpha: 1
-    - Class: rviz_default_plugins/TF
-      Name: TF
-      Enabled: false
-      Show Names: true
-      Show Axes: true
-      Marker Scale: 0.4
   Global Options:
     Fixed Frame: map
     Background Color: 40; 42; 48
@@ -170,6 +155,10 @@ Visualization Manager:
       Yaw: 3.14
       Target Frame: <Fixed Frame>
       Near Clip Distance: 0.01
+# Window Geometry below was written by RViz itself, not by hand. 'QMainWindow State'
+# is a Qt-serialised blob describing dock sizes and positions; without it RViz falls
+# back to distributing panels evenly, which is why a config can look completely
+# different on another screen size. Regenerate with scripts/bake_rviz_geometry.sh.
 # Window Geometry below was written by RViz itself, not by hand. 'QMainWindow State'
 # is a Qt-serialised blob describing dock sizes and positions; without it RViz falls
 # back to distributing panels evenly, which is why a config can look completely
