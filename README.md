@@ -218,7 +218,7 @@ Measured in the 8 × 8 m `indoor.world`, all verified from live topic output:
 | Result | Value |
 |---|---|
 | Simulated LiDAR | 360 rays, 10 Hz, 0.12–12 m, Gaussian noise σ = 0.01 m |
-| Simulated camera | 640 × 480 `rgb8`, 15 Hz |
+| Simulated camera | 1280 × 720 `rgb8`, 15 Hz |
 | Simulated IMU | 50 Hz |
 | Odometry | 30 Hz, full `odom → base_footprint` TF |
 | **SLAM map** | 8.2 × 8.8 m at 0.05 m/cell; every wall, the L-partition, both pillars, three crates, the planter and even the four table legs reconstructed |

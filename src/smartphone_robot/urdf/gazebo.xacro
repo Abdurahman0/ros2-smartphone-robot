@@ -165,10 +165,10 @@
       <visualize>false</visualize>
       <gz_frame_id>camera_optical_link</gz_frame_id>
       <camera>
-        <horizontal_fov>1.089</horizontal_fov>   <!-- ~62 deg, typical webcam -->
+        <horizontal_fov>1.211</horizontal_fov>   <!-- ~69 deg, 16:9 framing -->
         <image>
-          <width>640</width>
-          <height>480</height>
+          <width>1280</width>
+          <height>720</height>
           <format>R8G8B8</format>
         </image>
         <clip>

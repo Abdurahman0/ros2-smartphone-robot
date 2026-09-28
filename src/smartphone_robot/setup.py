@@ -48,6 +48,7 @@ setup(
             'phone_sensor_bridge = smartphone_robot.phone_sensor_bridge:main',
             'phone_camera_bridge = smartphone_robot.phone_camera_bridge:main',
             'object_follower = smartphone_robot.object_follower:main',
+            'camera_viewer = smartphone_robot.camera_viewer:main',
         ],
     },
 )

@@ -178,9 +178,14 @@ def generate_launch_description():
     # dock position, so it renders nowhere. A dedicated window always works, needs no
     # baked layout, and can be moved beside RViz however the presenter likes.
     camera_view = Node(
-        package='rqt_image_view', executable='rqt_image_view',
+        package='smartphone_robot', executable='camera_viewer',
         name='robot_camera_view',
-        arguments=['/camera/image_raw'],
+        parameters=[{
+            'image_topic': '/camera/image_raw',
+            'window_title': 'Robot camera',
+            'window_width': 960,
+            'use_sim_time': True,
+        }],
         condition=IfCondition(LaunchConfiguration('camera')),
     )
 
