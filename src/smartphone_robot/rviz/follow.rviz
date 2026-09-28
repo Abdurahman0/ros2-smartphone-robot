@@ -1,0 +1,98 @@
+# RViz for the object-following demo (follow_sim.launch.py).
+#
+# Deliberately NOT navigation.rviz: that config's Fixed Frame is 'map', which only exists
+# when SLAM or AMCL is running. This demo runs neither, so 'map' does not exist and that
+# config renders nothing but an empty grid -- the "white square" it looked like.
+#
+# Here the Fixed Frame is 'odom', which the diff-drive plugin always publishes. It shows:
+#   - the robot and its TF frames,
+#   - the live laser scan (so obstacles the robot passes are visible),
+#   - and the camera-with-detection image, docked in the same window, so what the robot
+#     sees and where it is are visible together.
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /RobotModel1
+        - /Camera (detection)1
+      Splitter Ratio: 0.5
+    Tree Height: 400
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 20
+      Color: 120; 120; 120
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+      Alpha: 1
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Marker Scale: 0.4
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Value: /scan
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        Depth: 5
+      Size (m): 0.03
+      Style: Spheres
+      Color: 255; 80; 40
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/Odometry
+      Name: Path (odom)
+      Enabled: true
+      Topic:
+        Value: /odom
+        Reliability Policy: Best Effort
+      Keep: 120
+      Shape:
+        Shaft Length: 0.15
+        Head Length: 0.08
+        Color: 60; 180; 255
+    # The robot's camera with the detection overlay, docked inside this same window.
+    - Class: rviz_default_plugins/Image
+      Name: Camera (detection)
+      Enabled: true
+      Topic:
+        Value: /object/debug_image
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        Depth: 2
+  Global Options:
+    Fixed Frame: odom
+    Background Color: 40; 42; 48
+    Frame Rate: 10
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 7
+      Focal Point:
+        X: 1.5
+        Y: 0.0
+        Z: 0.0
+      Pitch: 0.6
+      Yaw: 3.0
+      Target Frame: base_footprint
+Window Geometry:
+  Height: 900
+  Width: 1500
+  Displays:
+    collapsed: false
+  Camera (detection):
+    collapsed: false

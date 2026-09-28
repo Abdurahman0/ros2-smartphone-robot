@@ -33,7 +33,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     pkg_share = FindPackageShare('smartphone_robot')
-    rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'navigation.rviz'])
+    rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'follow.rviz'])
 
     gz_args_arg = DeclareLaunchArgument('gz_args', default_value='-r -v 3 -s')
     rviz_arg = DeclareLaunchArgument('rviz', default_value='false')

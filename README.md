@@ -356,6 +356,12 @@ centred (target x=-0.00) at 10% of the frame. That the identical `object_followe
 either camera, changed by a launch remapping alone, is the decoupling principle made
 concrete: perception does not know or care where its images come from.
 
+![Following, in RViz](screenshots/10_follow_rviz.png)
+*One RViz window: the robot's camera with the detection overlay (top left), the robot, its
+travelled path in blue, and the live laser scan in red. Fixed frame is `odom` — this demo
+runs no SLAM or AMCL, so there is no `map` frame, and a config expecting one shows only an
+empty grid.*
+
 ![Robot camera detection](screenshots/10_robot_camera_detection.png)
 *What the robot sees through its own camera: the red target centred, ringed by the
 detector. `target x=-0.00 area=10.1%` — centred and close, so the robot stops.*

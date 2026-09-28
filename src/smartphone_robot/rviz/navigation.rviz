@@ -58,7 +58,7 @@ Visualization Manager:
       Alpha: 0.3
     - Class: rviz_default_plugins/Map
       Name: LocalCostmap
-      Enabled: true
+      Enabled: false
       Topic:
         Value: /local_costmap/costmap
         Durability Policy: Transient Local
@@ -126,7 +126,7 @@ Visualization Manager:
   Global Options:
     Fixed Frame: map
     Background Color: 40; 42; 48
-    Frame Rate: 20
+    Frame Rate: 10
   Tools:
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
