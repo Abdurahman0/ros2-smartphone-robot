@@ -198,4 +198,5 @@ def generate_launch_description():
         TimerAction(period=12.0, actions=localization_nodes),
         TimerAction(period=15.0, actions=navigation_nodes),
         TimerAction(period=19.0, actions=[rviz]),
+        TimerAction(period=21.0, actions=[camera_view]),
     ])
