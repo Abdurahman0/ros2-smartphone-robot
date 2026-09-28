@@ -342,7 +342,28 @@ It is honest about being classical CV, not learning: it fails in poor light, aga
 same-coloured background, or under motion blur. Swapping in a neural detector would change
 only this node — the servoing, the topics and the robot are untouched.
 
-Run it (reactive mode; do not run Nav2 at the same time, both drive /cmd_vel):
+The same node also runs entirely in simulation, following a coloured target with the
+robot's OWN camera instead of the phone's. Only the input topic changes — the detection
+and control code is identical:
+
+```bash
+ros2 launch smartphone_robot follow_sim.launch.py
+```
+
+The robot starts in one corner, sees the red post across the room, drives to it and stops
+when it fills the frame — verified: from spawn at x=-3.0 it reached x=-0.45, with the post
+centred (target x=-0.00) at 10% of the frame. That the identical `object_follower` works on
+either camera, changed by a launch remapping alone, is the decoupling principle made
+concrete: perception does not know or care where its images come from.
+
+![Robot camera detection](screenshots/10_robot_camera_detection.png)
+*What the robot sees through its own camera: the red target centred, ringed by the
+detector. `target x=-0.00 area=10.1%` — centred and close, so the robot stops.*
+
+![Following, overhead](screenshots/10_follow_overview.png)
+*The same moment from above: the robot (blue) has driven across the room to the red post.*
+
+Run it with the phone instead (reactive mode; do not run Nav2 at the same time, both drive /cmd_vel):
 
 ```bash
 ros2 launch smartphone_robot phone_follow.launch.py \
