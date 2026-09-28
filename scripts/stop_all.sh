@@ -55,8 +55,9 @@ find /dev/shm -maxdepth 1 -name 'fastrtps*' -delete 2>/dev/null
 # Verify rather than assume. A single surviving gz sim or ros_gz_bridge is enough to
 # corrupt the next run, so keep going until the check is actually clean.
 for attempt in 1 2 3; do
-  LEFT=$(pgrep -fc 'gz sim|/opt/ros/jazzy/lib/ros_gz|/opt/ros/jazzy/bin/ros2 launch' 2>/dev/null | head -1)
-  LEFT=${LEFT:-0}
+  # ps|grep, not pgrep -fc: pgrep's -f matches its OWN command line too, so it reports
+  # phantom survivors. Excluding this script's own grep with [g] keeps the count honest.
+  LEFT=$(ps -eo args | grep -E 'gz sim|/opt/ros/jazzy/lib/ros_gz|[r]os2 launch' | grep -vc grep)
   [ "$LEFT" -eq 0 ] && break
   echo "  attempt ${attempt}: ${LEFT} still alive, killing again..."
   pkill -9 -f 'gz sim' 2>/dev/null
@@ -65,8 +66,7 @@ for attempt in 1 2 3; do
   sleep 3
 done
 
-CLOCKS=$(pgrep -fc 'gz sim' 2>/dev/null | head -1)
-CLOCKS=${CLOCKS:-0}
+CLOCKS=$(ps -eo args | grep -E '[g]z sim' | grep -vc grep)
 if [ "$CLOCKS" -ne 0 ]; then
   echo "WARNING: ${CLOCKS} gz sim process(es) still running. Two simulations means two"
   echo "         /clock publishers and simulated time that jumps backwards."
