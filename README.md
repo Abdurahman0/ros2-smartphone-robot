@@ -313,6 +313,42 @@ in the source, never in git — and credentials are masked in the logs.
   are different places. This is real sensor data entering a robotics stack, not a phone
   mapping your house.
 
+## Closing the Loop: the Phone Steers the Robot
+
+Until this point the phone's data was published but nothing consumed it. `object_follower`
+closes that gap — the piece that makes the project more than a simulation demo.
+
+```
+phone camera -> phone_camera_bridge -> /phone/camera/image_raw
+                                              |
+                                        object_follower  (OpenCV HSV blob detection)
+                                              |  /cmd_vel
+                                              v
+                                     Gazebo differential drive
+```
+
+Hold a brightly coloured object in front of the phone and the simulated robot turns to
+face it and drives toward it; take it away and it stops. This is **visual servoing** —
+closing a control loop through a camera — the same principle a real robot uses to approach
+a dock or track a person, with a colour blob standing in for a learned detector.
+
+Detection is an HSV colour threshold: the largest blob within a hue band, its centroid
+normalised to [-1, 1] across the frame. That error drives `angular.z` (turn to centre the
+object) and `linear.x` (approach until the blob fills enough of the frame). Verified end to
+end: with the target at frame x = +0.60 the node commanded `angular.z = -1.0`, and the
+robot's true heading, read from ground truth, rotated accordingly.
+
+It is honest about being classical CV, not learning: it fails in poor light, against a
+same-coloured background, or under motion blur. Swapping in a neural detector would change
+only this node — the servoing, the topics and the robot are untouched.
+
+Run it (reactive mode; do not run Nav2 at the same time, both drive /cmd_vel):
+
+```bash
+ros2 launch smartphone_robot phone_follow.launch.py \
+    stream_url:='http://user:pass@172.20.10.1:8081/video'
+```
+
 ## Measuring, Not Demonstrating
 
 A demonstration answers "does it work?" — and a yes tells you very little, least of all
