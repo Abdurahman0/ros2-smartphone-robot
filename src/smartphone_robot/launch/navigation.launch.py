@@ -64,6 +64,10 @@ def generate_launch_description():
     gz_args_arg = DeclareLaunchArgument('gz_args', default_value='-r -v 3 -s')
     rviz_arg = DeclareLaunchArgument('rviz', default_value='true')
     map_arg = DeclareLaunchArgument('map', default_value=map_file)
+    camera_arg = DeclareLaunchArgument(
+        'camera', default_value='true',
+        description='Also open the robot camera in an rqt_image_view window.',
+    )
     # Exposed so an experiment can swap the whole Nav2 configuration without editing
     # the installed file. Used by scripts/experiment_beam_count.sh.
     params_arg = DeclareLaunchArgument('params_file', default_value=nav2_params)
@@ -168,8 +172,20 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('rviz')),
     )
 
+    # The robot camera, in its own rqt_image_view window. It is a separate window rather
+    # than a panel inside RViz on purpose: RViz stores its dock layout as a serialised Qt
+    # blob, and an Image panel added by editing the config text does not get a reliable
+    # dock position, so it renders nowhere. A dedicated window always works, needs no
+    # baked layout, and can be moved beside RViz however the presenter likes.
+    camera_view = Node(
+        package='rqt_image_view', executable='rqt_image_view',
+        name='robot_camera_view',
+        arguments=['/camera/image_raw'],
+        condition=IfCondition(LaunchConfiguration('camera')),
+    )
+
     return LaunchDescription([
-        gz_args_arg, rviz_arg, map_arg, params_arg,
+        gz_args_arg, rviz_arg, map_arg, params_arg, camera_arg,
         simulation,
         # Delayed until the robot exists and is publishing /scan and TF. AMCL started
         # before any transform is available fails its first updates and logs a wall of
