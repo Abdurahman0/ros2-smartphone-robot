@@ -9,6 +9,10 @@ complement the simulated ones.
 
 ![System architecture](docs/architecture.svg)
 
+**Documentation:** [Project Report](docs/REPORT.md) (formal write-up) ·
+[Portfolio & interview prep](docs/portfolio.md) ·
+[Node/topic graph](docs/node_graph.svg)
+
 ---
 
 ## Project Overview
@@ -103,22 +107,32 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 │   ├── bake_rviz_geometry.sh          # let RViz write its own panel layout
 │   ├── check_xml.py                   # catch the '--' in XML comments trap
 │   ├── experiment_beam_count.sh       # controlled AMCL sweep against ground truth
+│   ├── download_yolo.sh               # fetch the object-detection model
 │   └── stop_all.sh                    # clean shutdown (see Limitations)
 ├── src/
 │   ├── smartphone_robot_interfaces/   # custom action definitions (ament_cmake)
 │   │   └── action/DriveDistance.action
 │   └── smartphone_robot/              # main package (ament_python)
 │       ├── smartphone_robot/          # nodes
+│       │   ├── node_utils.py             # shared node lifecycle (run_node helper)
 │       │   ├── velocity_publisher.py     # /cmd_vel producer, service-gated
 │       │   ├── velocity_monitor.py       # /cmd_vel watchdog + interpreter
 │       │   ├── drive_distance_server.py  # action server with feedback + cancel
-│       │   └── wander_node.py            # reactive obstacle avoidance from /scan
-│       ├── launch/                    # display, gazebo, mapping, navigation
+│       │   ├── wander_node.py            # reactive avoidance; auto-stops when mapped
+│       │   ├── keyboard_teleop.py        # arrow-key driving
+│       │   ├── phone_sensor_bridge.py    # phone IMU/GPS  -> sensor_msgs
+│       │   ├── phone_camera_bridge.py    # phone camera   -> sensor_msgs/Image
+│       │   ├── object_follower.py        # colour-blob visual servoing
+│       │   ├── object_detector.py        # YOLOv4-tiny object recognition
+│       │   ├── camera_viewer.py          # sizable image window
+│       │   └── localization_eval.py      # AMCL error vs ground truth -> CSV
+│       ├── launch/                    # 9 launch files (see How to Run)
 │       ├── config/                    # slam, nav2, bridge, node parameters
 │       ├── urdf/                      # robot.urdf.xacro, gazebo.xacro, inertials
 │       ├── worlds/indoor.world        # 8×8 m room with partition and obstacles
 │       ├── maps/                      # map produced by SLAM
-│       └── rviz/                      # three RViz configurations
+│       └── rviz/                      # RViz configs (display, nav, follow, teleop)
+├── models/yolo/                       # YOLOv4-tiny (weights via scripts/download_yolo.sh)
 ├── results/                           # localisation-error CSVs from the experiments
 ├── docs/                              # architecture diagrams (SVG)
 └── screenshots/
@@ -162,44 +176,82 @@ Notes on the `docker run` flags, since they are not decoration:
 
 ## How to Run
 
-**1 — Inspect the robot model (no simulator)**
+Every command is run inside the container (`docker exec -it ros2_dev bash`). **Only one
+launch at a time** — each owns Gazebo and `/cmd_vel`. Between runs:
 
+```bash
+bash scripts/stop_all.sh
+```
+
+### Simulation demos (no phone needed)
+
+**Inspect the robot model** — RViz with slider-driven joints, no simulator.
 ```bash
 ros2 launch smartphone_robot display.launch.py
 ```
-RViz plus slider controls for the wheel joints. The fastest way to check a URDF change.
 
-**2 — Simulation only**
-
+**Drive it by hand** — arrow keys, a clean 3D RViz, and the robot camera.
 ```bash
-ros2 launch smartphone_robot gazebo.launch.py            # with Gazebo GUI
-ros2 launch smartphone_robot gazebo.launch.py gz_args:='-r -v 3 -s'   # headless
-ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+ros2 launch smartphone_robot teleop.launch.py
 ```
+Click the small xterm window, then drive with the arrow keys (or WASD); `+`/`-` change
+speed, space stops.
 
-**3 — Build a map (SLAM)**
-
+**Build a map (SLAM)** — the robot explores by itself, **stops automatically when the map
+is complete**, then the arrow keys take over. RViz and the robot camera open too.
 ```bash
 ros2 launch smartphone_robot mapping.launch.py
-# the robot explores on its own; when the map looks complete:
-ros2 run nav2_map_server map_saver_cli -f src/smartphone_robot/maps/indoor \
-  --ros-args -p use_sim_time:=true
+# after "MAPPING COMPLETE", save it from another terminal:
+cd src/smartphone_robot/maps
+ros2 run nav2_map_server map_saver_cli -f indoor --ros-args -p use_sim_time:=true
 ```
 
-**4 — Autonomous navigation**
-
+**Autonomous navigation** — localise on the saved map and drive to clicked goals.
 ```bash
 ros2 launch smartphone_robot navigation.launch.py
 ```
-Click **Nav2 Goal** in RViz, or send one from a terminal:
-
+Use **Nav2 Goal** in RViz (press, drag to set heading, release), or:
 ```bash
 ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
   "{pose: {header: {frame_id: map}, pose: {position: {x: 5.0, y: 5.0}, \
     orientation: {w: 1.0}}}}" --feedback
 ```
+If the robot mislocalises, use **2D Pose Estimate** to tell AMCL where it really is.
 
-**Always stop a run with `scripts/stop_all.sh`** — see Limitations.
+**Vision follow (simulated)** — the robot follows a red post with its OWN camera.
+```bash
+ros2 launch smartphone_robot follow_sim.launch.py rviz:=true
+```
+
+### Smartphone demos (phone on the same Wi-Fi / hotspot)
+
+First check the phone is reachable: `ping 172.20.10.1`. The `%40` below is the `@` in the
+password, URL-encoded.
+
+**Object detection (YOLO)** — the phone camera recognises real objects.
+```bash
+ros2 launch smartphone_robot phone_detect.launch.py \
+  stream_url:='http://user:%40pass@172.20.10.1:8081/video'
+```
+
+**Phone steers the robot** — a colour the phone sees turns the simulated robot.
+```bash
+ros2 launch smartphone_robot phone_follow.launch.py \
+  stream_url:='http://user:%40pass@172.20.10.1:8081/video'
+```
+
+**Phone IMU / GPS into ROS** — real motion data as `sensor_msgs`.
+```bash
+ros2 run smartphone_robot phone_sensor_bridge --ros-args -p host:=172.20.10.1 -p port:=80
+```
+
+### Measurement
+
+```bash
+ros2 run smartphone_robot localization_eval --ros-args -p use_sim_time:=true \
+  -p output_csv:=results/run.csv          # logs AMCL error vs ground truth
+bash scripts/experiment_beam_count.sh 30 180 360   # controlled AMCL sweep
+```
 
 ### Custom nodes
 
