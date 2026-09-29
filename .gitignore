@@ -42,3 +42,6 @@ frames_*.pdf
 
 # --- the map lives inside the package (so colcon installs it), not at the repo root ---
 /maps/
+
+# --- YOLO model weights (24 MB, downloaded by scripts/download_yolo.sh) ---
+models/yolo/*.weights
