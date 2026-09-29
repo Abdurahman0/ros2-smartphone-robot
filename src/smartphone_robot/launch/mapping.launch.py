@@ -43,7 +43,11 @@ def generate_launch_description():
     rviz_arg = DeclareLaunchArgument('rviz', default_value='true')
     wander_arg = DeclareLaunchArgument(
         'wander', default_value='true',
-        description='Explore automatically. Set false to drive manually instead.',
+        description='Explore automatically until the map is complete, then stop.',
+    )
+    teleop_arg = DeclareLaunchArgument(
+        'teleop', default_value='true',
+        description='Also open arrow-key teleop, silent until the auto-explore finishes.',
     )
 
     # Launch configurations are GLOBAL by default: an included launch file sees the
@@ -124,8 +128,21 @@ def generate_launch_description():
         executable='wander_node',
         name='wander_node',
         output='screen',
-        parameters=[node_params, {'use_sim_time': True}],
+        parameters=[node_params, {'use_sim_time': True, 'auto_stop': True}],
     )], condition=IfCondition(LaunchConfiguration('wander')))
+
+    # Arrow-key teleop, opened in its own xterm, silent until the first key. While
+    # wander_node is auto-exploring it publishes nothing, so the two never fight; the
+    # moment exploration finishes (wander stops) and you press an arrow, teleop takes
+    # over. This is how you keep driving the robot after the map is built.
+    teleop = TimerAction(period=16.0, actions=[Node(
+        package='smartphone_robot',
+        executable='keyboard_teleop',
+        name='keyboard_teleop',
+        output='screen',
+        parameters=[{'use_sim_time': True, 'silent_until_first_key': True}],
+        prefix='xterm -e',
+    )], condition=IfCondition(LaunchConfiguration('teleop')))
 
     rviz = Node(
         package='rviz2',
@@ -137,9 +154,10 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        gz_args_arg, rviz_arg, wander_arg,
+        gz_args_arg, rviz_arg, wander_arg, teleop_arg,
         simulation,
         delayed_slam,
         wander,
+        teleop,
         TimerAction(period=12.0, actions=[rviz]),
     ])

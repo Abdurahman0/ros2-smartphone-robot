@@ -56,6 +56,15 @@ class KeyboardTeleop(Node):
         self.w = self.get_parameter('angular_speed').value
         self.key_timeout = self.get_parameter('key_timeout').value
 
+        # When true, publish nothing until the first movement key is pressed. This lets
+        # teleop share a launch with an auto-driver (wander_node during mapping) without
+        # both writing /cmd_vel at once: teleop stays silent while the robot maps itself,
+        # and takes over the moment you press an arrow. Once you have driven, the normal
+        # "no key -> stop" safety applies.
+        self.declare_parameter('silent_until_first_key', False)
+        self.silent = self.get_parameter('silent_until_first_key').value
+        self.activated = not self.silent
+
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.lin = 0.0
         self.ang = 0.0
@@ -94,6 +103,16 @@ class KeyboardTeleop(Node):
         elif key == '':
             # No key this cycle -> stop, so a released key does not leave the robot going.
             self.lin, self.ang = 0.0, 0.0
+
+        # A real movement/stop key activates teleop. Until then, in shared-launch mode,
+        # stay completely silent so we do not fight the auto-driver.
+        if key in ('up', 'down', 'left', 'right', 'w', 'a', 's', 'd', ' '):
+            if not self.activated:
+                self.activated = True
+                self._status('teleop active -- you are now driving')
+
+        if not self.activated:
+            return
 
         msg = Twist()
         msg.linear.x = self.lin

@@ -27,6 +27,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import OccupancyGrid
+from std_msgs.msg import Bool
+from rclpy.qos import DurabilityPolicy
 
 
 class WanderNode(Node):
@@ -42,6 +45,14 @@ class WanderNode(Node):
         self.declare_parameter('front_angle', 0.6)        # [rad] half-width of "front"
         self.declare_parameter('side_angle', 1.2)         # [rad] half-width of each side
         self.declare_parameter('control_rate', 10.0)      # [Hz]
+        # Auto-stop when the map stops growing. Exploration is "done" when the number of
+        # known map cells barely increases over a window of time -- the robot has seen
+        # essentially all it can reach. After that it stops driving and hands /cmd_vel
+        # over to whatever else wants it (e.g. keyboard teleop).
+        self.declare_parameter('auto_stop', True)
+        self.declare_parameter('done_growth_frac', 0.01)  # <1% growth over the window
+        self.declare_parameter('done_window_sec', 12.0)   # window to measure growth
+        self.declare_parameter('min_map_cells', 2000)     # don't declare done too early
 
         self.forward_speed = self.get_parameter('forward_speed').value
         self.turn_speed = self.get_parameter('turn_speed').value
@@ -68,6 +79,25 @@ class WanderNode(Node):
 
         self.latest_scan = None
         self.turn_direction = 0.0   # 0 = driving straight, +1 left, -1 right
+
+        # --- map-completion tracking ---
+        self.auto_stop = self.get_parameter('auto_stop').value
+        self.done_growth = self.get_parameter('done_growth_frac').value
+        self.done_window = self.get_parameter('done_window_sec').value
+        self.min_cells = self.get_parameter('min_map_cells').value
+        self.done = False
+        self.known_cells = 0
+        self.window_start_cells = 0
+        self.window_start_time = None
+
+        # The map is latched (TRANSIENT_LOCAL), so match that or the last map never arrives.
+        map_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
+                             durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                             history=HistoryPolicy.KEEP_LAST, depth=1)
+        self.create_subscription(OccupancyGrid, 'map', self.on_map, map_qos)
+        # Announce completion so a launch or another node can react to it.
+        self.done_pub = self.create_publisher(Bool, 'exploration_done', 10)
+
         self.timer = self.create_timer(1.0 / rate, self.on_timer)
 
         self.get_logger().info(
@@ -79,6 +109,42 @@ class WanderNode(Node):
 
     def on_scan(self, msg: LaserScan):
         self.latest_scan = msg
+
+    def on_map(self, msg: OccupancyGrid):
+        """Count known cells and decide when exploration has plateaued."""
+        if self.done or not self.auto_stop:
+            return
+        # Known = anything that is not -1 (unknown): free or occupied.
+        self.known_cells = sum(1 for v in msg.data if v >= 0)
+
+        now = self.get_clock().now().nanoseconds / 1e9
+        if self.window_start_time is None:
+            self.window_start_time = now
+            self.window_start_cells = self.known_cells
+            return
+
+        if now - self.window_start_time < self.done_window:
+            return
+
+        # A full window has passed: how much did the known area grow?
+        base = max(self.window_start_cells, 1)
+        growth = (self.known_cells - self.window_start_cells) / base
+        if self.known_cells >= self.min_cells and growth < self.done_growth:
+            self.done = True
+            self.cmd_pub.publish(Twist())   # stop
+            self.done_pub.publish(Bool(data=True))
+            self.get_logger().info(
+                '\n'
+                '======================================================\n'
+                f' MAPPING COMPLETE ({self.known_cells} cells mapped).\n'
+                ' The robot has stopped. You can now DRIVE IT with the\n'
+                ' arrow keys in the teleop window, then save the map.\n'
+                '======================================================'
+            )
+        else:
+            # Slide the window forward for the next measurement.
+            self.window_start_time = now
+            self.window_start_cells = self.known_cells
 
     def _sector_min(self, scan: LaserScan, centre: float, half_width: float) -> float:
         """Smallest valid range within +/- half_width radians of `centre`.
@@ -114,6 +180,11 @@ class WanderNode(Node):
     def on_timer(self):
         """One control step. Runs at a fixed rate regardless of scan timing."""
         if self.latest_scan is None:
+            return
+
+        # Once mapping is done, stop driving and stay silent so another publisher
+        # (keyboard teleop) can own /cmd_vel without a fight.
+        if self.done:
             return
 
         scan = self.latest_scan
