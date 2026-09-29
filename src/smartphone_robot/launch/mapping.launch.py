@@ -49,6 +49,10 @@ def generate_launch_description():
         'teleop', default_value='true',
         description='Also open arrow-key teleop, silent until the auto-explore finishes.',
     )
+    camera_arg = DeclareLaunchArgument(
+        'camera', default_value='true',
+        description="Also open the robot's camera in a window.",
+    )
 
     # Launch configurations are GLOBAL by default: an included launch file sees the
     # parent's arguments, and any launch_arguments set for it leak back out to the
@@ -144,6 +148,20 @@ def generate_launch_description():
         prefix='xterm -e',
     )], condition=IfCondition(LaunchConfiguration('teleop')))
 
+    # The robot's own camera, in its own window (see navigation.launch.py for why a
+    # separate window rather than an embedded RViz panel).
+    camera_view = TimerAction(period=14.0, actions=[Node(
+        package='smartphone_robot',
+        executable='camera_viewer',
+        name='robot_camera_view',
+        parameters=[{
+            'image_topic': '/camera/image_raw',
+            'window_title': 'Robot camera',
+            'window_width': 640,
+            'use_sim_time': True,
+        }],
+    )], condition=IfCondition(LaunchConfiguration('camera')))
+
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -154,10 +172,11 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        gz_args_arg, rviz_arg, wander_arg, teleop_arg,
+        gz_args_arg, rviz_arg, wander_arg, teleop_arg, camera_arg,
         simulation,
         delayed_slam,
         wander,
         teleop,
+        camera_view,
         TimerAction(period=12.0, actions=[rviz]),
     ])
