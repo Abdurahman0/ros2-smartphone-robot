@@ -50,6 +50,7 @@ setup(
             'object_follower = smartphone_robot.object_follower:main',
             'camera_viewer = smartphone_robot.camera_viewer:main',
             'object_detector = smartphone_robot.object_detector:main',
+            'keyboard_teleop = smartphone_robot.keyboard_teleop:main',
         ],
     },
 )

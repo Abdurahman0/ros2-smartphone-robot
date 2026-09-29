@@ -1,0 +1,98 @@
+# A cleaner RViz view for driving the robot by hand.
+#
+# Design choices, all aimed at readability:
+#   - a 3D perspective, not a top-down map, so the robot's shape and the walls read as
+#     objects rather than a pixelated grid;
+#   - a soft dark background so the coloured robot and the red laser stand out;
+#   - the map shown faintly underfoot for context, the live laser scan bright on top;
+#   - a trailing path so the driving is visible as a line, not just a moving dot.
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /RobotModel1
+      Splitter Ratio: 0.5
+    Tree Height: 500
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 24
+      Color: 78; 82; 92
+      Alpha: 0.35
+      Line Style:
+        Value: Lines
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+      Alpha: 1
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Value: /scan
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        Depth: 5
+      Size (m): 0.035
+      Style: Spheres
+      Color: 255; 90; 60
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/Odometry
+      Name: Trail
+      Enabled: true
+      Topic:
+        Value: /odom
+        Reliability Policy: Best Effort
+      Keep: 150
+      Position Tolerance: 0.05
+      Shape:
+        Value: Arrow
+        Shaft Length: 0.12
+        Shaft Radius: 0.02
+        Head Length: 0.06
+        Head Radius: 0.04
+        Color: 70; 170; 255
+        Alpha: 0.7
+    - Class: rviz_default_plugins/Image
+      Name: Robot camera
+      Enabled: true
+      Topic:
+        Value: /camera/image_raw
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        Depth: 2
+  Global Options:
+    Fixed Frame: odom
+    Background Color: 33; 36; 43
+    Frame Rate: 15
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 4.5
+      Focal Point:
+        X: 0.2
+        Y: 0.0
+        Z: 0.0
+      Pitch: 0.45
+      Yaw: 3.05
+      Target Frame: base_footprint
+      Near Clip Distance: 0.01
+Window Geometry:
+  Height: 900
+  Width: 1500
+  Displays:
+    collapsed: false
+  Robot camera:
+    collapsed: false
