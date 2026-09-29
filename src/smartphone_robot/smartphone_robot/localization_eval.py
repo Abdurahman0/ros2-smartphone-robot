@@ -38,13 +38,11 @@ easy to spot: the error never approaches zero even when the robot has just start
 
 import csv
 import math
-import signal
 from pathlib import Path
 
-import rclpy
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 
@@ -197,27 +195,9 @@ class LocalizationEval(Node):
             self.csv_file.close()
 
 
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = LocalizationEval()
-
-    stop = False
-
-    def request_stop(_signum, _frame):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, request_stop)
-    signal.signal(signal.SIGTERM, request_stop)
-
-    try:
-        while rclpy.ok() and not stop:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        if rclpy.ok():
-            node.report()
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(LocalizationEval, on_shutdown=lambda n: n.report(), args=args)
 
 
 if __name__ == '__main__':

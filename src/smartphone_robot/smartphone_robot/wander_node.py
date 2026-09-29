@@ -19,12 +19,10 @@ driver is invisible here, and the code would not change.
 """
 
 import math
-import signal
 
-import rclpy
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
@@ -225,28 +223,14 @@ class WanderNode(Node):
         self.cmd_pub.publish(Twist())
 
 
+
+def _wander_shutdown(node):
+    node.stop_robot()
+    node.get_logger().info('wander_node stopped; zero velocity sent.')
+
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = WanderNode()
-
-    shutdown_requested = False
-
-    def request_shutdown(_signum, _frame):
-        nonlocal shutdown_requested
-        shutdown_requested = True
-
-    signal.signal(signal.SIGINT, request_shutdown)
-    signal.signal(signal.SIGTERM, request_shutdown)
-
-    try:
-        while rclpy.ok() and not shutdown_requested:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        if rclpy.ok():
-            node.stop_robot()
-            node.get_logger().info('wander_node stopped; zero velocity sent.')
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(WanderNode, on_shutdown=_wander_shutdown, args=args)
 
 
 if __name__ == '__main__':

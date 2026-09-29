@@ -42,15 +42,13 @@ It writes to /cmd_vel, so run it INSTEAD of Nav2, not alongside it -- two publis
 fighting over one base is not something to arbitrate here.
 """
 
-import signal
 import time
 
 import cv2
 import numpy as np
-import rclpy
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from rclpy.signals import SignalHandlerOptions
 from geometry_msgs.msg import Twist, Point
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
@@ -227,27 +225,13 @@ class ObjectFollower(Node):
         time.sleep(0.1)
 
 
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = ObjectFollower()
-
-    stop = False
-
-    def request_stop(_s, _f):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, request_stop)
-    signal.signal(signal.SIGTERM, request_stop)
-
-    try:
-        while rclpy.ok() and not stop:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        if rclpy.ok() and node.drive:
-            node.stop()
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(
+        ObjectFollower,
+        on_shutdown=lambda n: n.stop() if n.drive else None,
+        args=args,
+    )
 
 
 if __name__ == '__main__':

@@ -35,11 +35,9 @@ import os
 
 import cv2
 import numpy as np
-import rclpy
-import signal
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
@@ -150,25 +148,9 @@ class ObjectDetector(Node):
         self.get_logger().info(f'detected: {text}', throttle_duration_sec=1.0)
 
 
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = ObjectDetector()
-
-    stop = False
-
-    def request_stop(_s, _f):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, request_stop)
-    signal.signal(signal.SIGTERM, request_stop)
-
-    try:
-        while rclpy.ok() and not stop:
-            rclpy.spin_once(node, timeout_sec=0.05)
-    finally:
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(ObjectDetector, args=args)
 
 
 if __name__ == '__main__':

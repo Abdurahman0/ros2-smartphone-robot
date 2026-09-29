@@ -64,15 +64,13 @@ driver needs proper time synchronisation, and this one does not have it.
 """
 
 import json
-import math
-import signal
 import urllib.error
 import urllib.request
 
 import rclpy
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
 
 
@@ -345,29 +343,14 @@ class PhoneSensorBridge(Node):
         self.gps_count += 1
 
 
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = PhoneSensorBridge()
-
-    stop = False
-
-    def request_stop(_signum, _frame):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, request_stop)
-    signal.signal(signal.SIGTERM, request_stop)
-
-    try:
-        while rclpy.ok() and not stop:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        if rclpy.ok():
-            node.get_logger().info(
-                f'Shutting down after {node.imu_count} IMU and {node.gps_count} GPS messages.'
-            )
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(
+        PhoneSensorBridge,
+        on_shutdown=lambda n: n.get_logger().info(
+            f'Shutting down after {n.imu_count} IMU and {n.gps_count} GPS messages.'),
+        args=args,
+    )
 
 
 if __name__ == '__main__':

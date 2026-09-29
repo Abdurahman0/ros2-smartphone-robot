@@ -13,11 +13,9 @@ velocity they were given. Watchdog nodes like this one are standard on hardware.
 """
 
 import math
-import signal
 
-import rclpy
 from rclpy.node import Node
-from rclpy.signals import SignalHandlerOptions
+from smartphone_robot.node_utils import run_node
 from geometry_msgs.msg import Twist
 
 
@@ -111,31 +109,14 @@ class VelocityMonitor(Node):
             self.warned_about_silence = True
 
 
+
 def main(args=None):
-    # Same reason as in velocity_publisher: rclpy's default SIGINT handler shuts the
-    # context down before spin() returns, so the closing summary below would fail
-    # with "Failed to publish log message to rosout: publisher's context is invalid".
-    # Handling the signal ourselves keeps the context alive until we are done.
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = VelocityMonitor()
-
-    shutdown_requested = False
-
-    def request_shutdown(_signum, _frame):
-        nonlocal shutdown_requested
-        shutdown_requested = True
-
-    signal.signal(signal.SIGINT, request_shutdown)
-    signal.signal(signal.SIGTERM, request_shutdown)
-
-    try:
-        while rclpy.ok() and not shutdown_requested:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        if rclpy.ok():
-            node.get_logger().info(f'Shutting down after {node.msg_count} messages.')
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(
+        VelocityMonitor,
+        on_shutdown=lambda n: n.get_logger().info(
+            f'Shutting down after {n.msg_count} messages.'),
+        args=args,
+    )
 
 
 if __name__ == '__main__':

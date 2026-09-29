@@ -20,12 +20,10 @@ the contrast between them is the point:
     unsafe values before they ever reach the wheels.
 """
 
-import signal
 import time
 
-import rclpy
 from rclpy.node import Node
-from rclpy.signals import SignalHandlerOptions
+from smartphone_robot.node_utils import run_node
 from geometry_msgs.msg import Twist
 from rcl_interfaces.msg import SetParametersResult
 from std_srvs.srv import SetBool
@@ -219,41 +217,13 @@ class VelocityPublisher(Node):
         self.get_logger().info('Stopped: published zero velocity.')
 
 
+
 def main(args=None):
     """Entry point registered in setup.py as `velocity_publisher`."""
-    # SAFETY: a velocity command is a *latched intent*, not a one-off pulse. A real
-    # base keeps driving at the last commanded speed until told otherwise, so a node
-    # that dies mid-motion leaves the robot running into a wall. We therefore must
-    # publish a zero Twist on the way out.
-    #
-    # rclpy's default SIGINT handler tears the context down BEFORE spin() returns,
-    # which makes that final publish fail with "publisher's context is invalid". So
-    # we take the signal over ourselves: SignalHandlerOptions.NO stops rclpy from
-    # installing its handler, and our handler only sets a flag. The context stays
-    # valid until we choose to shut it down.
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = VelocityPublisher()
-
-    shutdown_requested = False
-
-    def request_shutdown(_signum, _frame):
-        nonlocal shutdown_requested
-        shutdown_requested = True
-
-    signal.signal(signal.SIGINT, request_shutdown)    # Ctrl-C
-    signal.signal(signal.SIGTERM, request_shutdown)   # docker stop / ros2 launch
-
-    try:
-        # spin_once() in a loop instead of spin(), so the flag is checked regularly.
-        # timeout_sec bounds how long we block waiting for work.
-        while rclpy.ok() and not shutdown_requested:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        if rclpy.ok():
-            node.stop_robot()
-        node.destroy_node()
-        # try_shutdown() is a no-op if the context is already down.
-        rclpy.try_shutdown()
+    # A zero Twist must be sent on the way out: /cmd_vel is a latched command, so a node
+    # that dies mid-motion leaves the base driving. on_shutdown runs while the context is
+    # still valid, which is what makes that final publish possible (see node_utils).
+    run_node(VelocityPublisher, on_shutdown=lambda n: n.stop_robot(), args=args)
 
 
 if __name__ == '__main__':

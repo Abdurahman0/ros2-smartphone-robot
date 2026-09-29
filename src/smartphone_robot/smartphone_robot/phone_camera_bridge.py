@@ -39,11 +39,9 @@ the freshest frame is the only one worth having.
 
 import threading
 
-import rclpy
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from rclpy.signals import SignalHandlerOptions
-import signal
 
 import cv2
 from sensor_msgs.msg import Image, CameraInfo
@@ -197,28 +195,15 @@ class PhoneCameraBridge(Node):
         self._running = False
 
 
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = PhoneCameraBridge()
-
-    stop = False
-
-    def request_stop(_signum, _frame):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, request_stop)
-    signal.signal(signal.SIGTERM, request_stop)
-
-    try:
-        while rclpy.ok() and not stop:
-            rclpy.spin_once(node, timeout_sec=0.1)
-    finally:
-        node.stop()
-        if rclpy.ok():
-            node.get_logger().info(f'Shutting down after {node.frame_count} frames.')
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(
+        PhoneCameraBridge,
+        always=lambda n: n.stop(),   # stop the grab thread even if the context is down
+        on_shutdown=lambda n: n.get_logger().info(
+            f'Shutting down after {n.frame_count} frames.'),
+        args=args,
+    )
 
 
 if __name__ == '__main__':

@@ -13,13 +13,11 @@ is the standard way to drive an OpenCV window from inside a node.
         -p image_topic:=/camera/image_raw -p window_width:=960
 """
 
-import signal
 
 import cv2
-import rclpy
 from rclpy.node import Node
+from smartphone_robot.node_utils import run_node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
@@ -59,26 +57,9 @@ class CameraViewer(Node):
         cv2.destroyAllWindows()
 
 
+
 def main(args=None):
-    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
-    node = CameraViewer()
-
-    stop = False
-
-    def request_stop(_s, _f):
-        nonlocal stop
-        stop = True
-
-    signal.signal(signal.SIGINT, request_stop)
-    signal.signal(signal.SIGTERM, request_stop)
-
-    try:
-        while rclpy.ok() and not stop:
-            rclpy.spin_once(node, timeout_sec=0.05)
-    finally:
-        node.close()
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run_node(CameraViewer, always=lambda n: n.close(), args=args)
 
 
 if __name__ == '__main__':
