@@ -77,7 +77,9 @@ def generate_launch_description():
 
     pkg_share = FindPackageShare('smartphone_robot')
 
-    world_file = PathJoinSubstitution([pkg_share, 'worlds', 'indoor.world'])
+    # Which world to load, from the package's worlds/ directory. Default is the built-in
+    # indoor room; pass world:=house.world to map a downloaded 3D house instead.
+    world_file = PathJoinSubstitution([pkg_share, 'worlds', LaunchConfiguration('world')])
     xacro_file = PathJoinSubstitution([pkg_share, 'urdf', 'robot.urdf.xacro'])
     bridge_config = PathJoinSubstitution([pkg_share, 'config', 'gz_bridge.yaml'])
     rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'navigation.rviz'])
@@ -85,6 +87,10 @@ def generate_launch_description():
     # '-r' starts the simulation running rather than paused.
     # '-v 3' sets log verbosity. Append '-s' for a headless server (much lighter on
     # RAM and CPU, which matters on this machine).
+    world_arg = DeclareLaunchArgument(
+        'world', default_value='indoor.world',
+        description='World file in worlds/ to load (e.g. indoor.world, house.world).',
+    )
     gz_args_arg = DeclareLaunchArgument(
         'gz_args', default_value='-r -v 3',
         description="Extra arguments for gz sim. Add '-s' to run headless.",
@@ -173,7 +179,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        gz_args_arg, rviz_arg, x_arg, y_arg, yaw_arg,
+        world_arg, gz_args_arg, rviz_arg, x_arg, y_arg, yaw_arg,
         gz_sim,
         robot_state_publisher,
         bridge,

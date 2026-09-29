@@ -36,6 +36,10 @@ def generate_launch_description():
     node_params = PathJoinSubstitution([pkg_share, 'config', 'velocity_params.yaml'])
     rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'mapping.rviz'])
 
+    world_arg = DeclareLaunchArgument(
+        'world', default_value='indoor.world',
+        description='World to map (indoor.world, or house.world for the 3D house).',
+    )
     gz_args_arg = DeclareLaunchArgument(
         'gz_args', default_value='-r -v 3 -s',
         description="Arguments for gz sim; default is headless. Drop '-s' to see the GUI.",
@@ -74,6 +78,7 @@ def generate_launch_description():
                 launch_arguments={
                     'gz_args': LaunchConfiguration('gz_args'),
                     'rviz': 'false',
+                    'world': LaunchConfiguration('world'),
                 }.items(),
             ),
         ],
@@ -172,7 +177,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        gz_args_arg, rviz_arg, wander_arg, teleop_arg, camera_arg,
+        world_arg, gz_args_arg, rviz_arg, wander_arg, teleop_arg, camera_arg,
         simulation,
         delayed_slam,
         wander,

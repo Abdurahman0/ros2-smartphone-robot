@@ -1,0 +1,71 @@
+<?xml version="1.0" ?>
+<!--
+  A downloaded 3D house from Gazebo Fuel, for the robot to map and navigate.
+
+  The point of this world: the robot maps a rich, realistic environment it did not
+  design, using nothing but its 2D LiDAR. The house is a full 3D model (rooms, walls,
+  furniture); the robot's laser slices through it at its own height and SLAM builds a 2D
+  occupancy map from those slices. This is exactly how a real 2D-LiDAR robot perceives a
+  3D building  - it never sees the whole 3D shape, only a horizontal cross-section.
+
+  The house model is pulled from Fuel (fuel.gazebosim.org) and cached locally by
+  `gz fuel download`, so this world only references it by name via <include>.
+-->
+<sdf version="1.10">
+  <world name="house">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <gravity>0 0 -9.8</gravity>
+
+    <scene>
+      <ambient>0.7 0.7 0.7 1</ambient>
+      <background>0.6 0.7 0.85 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 12 0 0 0</pose>
+      <diffuse>0.9 0.9 0.85 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.3 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>60 60</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>60 60</size></plane></geometry>
+          <material>
+            <ambient>0.4 0.4 0.42 1</ambient>
+            <diffuse>0.5 0.5 0.52 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- The downloaded 3D house. Included by its Fuel name; the local cache from
+         `gz fuel download` supplies the meshes. -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/House 1</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>
