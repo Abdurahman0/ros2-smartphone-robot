@@ -36,6 +36,8 @@ def generate_launch_description():
     node_params = PathJoinSubstitution([pkg_share, 'config', 'velocity_params.yaml'])
     rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'mapping.rviz'])
 
+    x_arg = DeclareLaunchArgument('x', default_value='-3.0')
+    y_arg = DeclareLaunchArgument('y', default_value='-3.0')
     world_arg = DeclareLaunchArgument(
         'world', default_value='indoor.world',
         description='World to map (indoor.world, or house.world for the 3D house).',
@@ -79,6 +81,8 @@ def generate_launch_description():
                     'gz_args': LaunchConfiguration('gz_args'),
                     'rviz': 'false',
                     'world': LaunchConfiguration('world'),
+                    'x': LaunchConfiguration('x'),
+                    'y': LaunchConfiguration('y'),
                 }.items(),
             ),
         ],
@@ -177,7 +181,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        world_arg, gz_args_arg, rviz_arg, wander_arg, teleop_arg, camera_arg,
+        world_arg, x_arg, y_arg, gz_args_arg, rviz_arg, wander_arg, teleop_arg, camera_arg,
         simulation,
         delayed_slam,
         wander,

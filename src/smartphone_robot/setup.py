@@ -22,6 +22,10 @@ setup(
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
+        *[
+            (os.path.join('share', package_name, os.path.dirname(f)), [f])
+            for f in glob('meshes/**/*', recursive=True) if os.path.isfile(f)
+        ],
         (os.path.join('share', package_name, 'maps'), glob('maps/*')),
         (os.path.join('share', package_name, 'models'), glob('models/**/*', recursive=True)),
     ],
