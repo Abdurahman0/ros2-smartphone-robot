@@ -28,8 +28,9 @@ interchangeable with real ones: moving to physical hardware means replacing the 
 bridge, not the autonomy code.
 
 **Status of each part is stated honestly below** — the simulation, SLAM and navigation
-pipeline is complete and verified; the smartphone sensor bridge and the OpenCV perception
-node are designed and scaffolded but not yet implemented.
+pipeline is complete and verified; the smartphone IMU/GPS bridge, the phone-camera bridge
+and the OpenCV / YOLO perception nodes are all implemented and verified end to end against
+real hardware.
 
 ## Motivation
 
@@ -91,7 +92,7 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 | Navigation | Navigation2 — NavFn global planner, Regulated Pure Pursuit controller, AMCL, costmaps |
 | Phone sensors | Phyphox HTTP API, `urllib`, `sensor_msgs/Imu` + `NavSatFix` |
 | Phone camera | IP Camera Lite MJPEG/RTSP, OpenCV `VideoCapture`, `cv_bridge` |
-| Vision | OpenCV 4.6 detector *(scaffolded, not yet implemented)* |
+| Vision | OpenCV 4.6 HSV colour servoing + YOLOv4-tiny (`cv2.dnn`, 80 COCO classes) |
 | Visualisation | RViz2, `rqt_graph`, `tf2_echo`, `ros2 topic hz/echo` |
 | Environment | Docker, Xvfb (headless screenshots) |
 | Language | Python 3.12 |
@@ -107,7 +108,10 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 │   ├── bake_rviz_geometry.sh          # let RViz write its own panel layout
 │   ├── check_xml.py                   # catch the '--' in XML comments trap
 │   ├── experiment_beam_count.sh       # controlled AMCL sweep against ground truth
+│   ├── add_room.py                    # drop a 3D mesh -> Gazebo world + mapping command
+│   ├── download_house.sh              # fetch a full house world from Gazebo Fuel
 │   ├── download_yolo.sh               # fetch the object-detection model
+│   ├── save_map.sh                    # export the live SLAM map to .pgm + .yaml
 │   └── stop_all.sh                    # clean shutdown (see Limitations)
 ├── src/
 │   ├── smartphone_robot_interfaces/   # custom action definitions (ament_cmake)
@@ -115,8 +119,6 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 │   └── smartphone_robot/              # main package (ament_python)
 │       ├── smartphone_robot/          # nodes
 │       │   ├── node_utils.py             # shared node lifecycle (run_node helper)
-│       │   ├── velocity_publisher.py     # /cmd_vel producer, service-gated
-│       │   ├── velocity_monitor.py       # /cmd_vel watchdog + interpreter
 │       │   ├── drive_distance_server.py  # action server with feedback + cancel
 │       │   ├── wander_node.py            # reactive avoidance; auto-stops when mapped
 │       │   ├── keyboard_teleop.py        # arrow-key driving
@@ -126,10 +128,11 @@ map ──> odom ──> base_footprint ──> base_link ──> {left_wheel, r
 │       │   ├── object_detector.py        # YOLOv4-tiny object recognition
 │       │   ├── camera_viewer.py          # sizable image window
 │       │   └── localization_eval.py      # AMCL error vs ground truth -> CSV
-│       ├── launch/                    # 9 launch files (see How to Run)
-│       ├── config/                    # slam, nav2, bridge, node parameters
+│       ├── launch/                    # 8 launch files (see How to Run)
+│       ├── config/                    # slam, nav2, bridge parameters
 │       ├── urdf/                      # robot.urdf.xacro, gazebo.xacro, inertials
-│       ├── worlds/indoor.world        # 8×8 m room with partition and obstacles
+│       ├── worlds/                    # indoor.world (8×8 m) + house.world (Fuel)
+│       ├── meshes/                    # imported room meshes (see add_room.py)
 │       ├── maps/                      # map produced by SLAM
 │       └── rviz/                      # RViz configs (display, nav, follow, teleop)
 ├── models/yolo/                       # YOLOv4-tiny (weights via scripts/download_yolo.sh)
@@ -273,12 +276,57 @@ bash scripts/experiment_beam_count.sh 30 180 360   # controlled AMCL sweep
 ### Custom nodes
 
 ```bash
-ros2 run smartphone_robot velocity_publisher --ros-args -p linear_x:=0.3
-ros2 service call /velocity_publisher/enable_motion std_srvs/srv/SetBool "{data: false}"
-ros2 param set /velocity_publisher linear_x 0.5     # validated at runtime
 ros2 action send_goal /drive_distance \
   smartphone_robot_interfaces/action/DriveDistance "{distance: 1.0, speed: 0.25}" --feedback
 ```
+
+## Code Reference
+
+Every runnable piece, what it does, and the exact command. Launch files orchestrate
+several nodes; the nodes can also be run alone with `ros2 run smartphone_robot <name>`.
+
+### Launch files (`ros2 launch smartphone_robot <file>`)
+
+| File | What it does | Command |
+|---|---|---|
+| `display.launch.py` | Robot URDF in RViz with slider-driven joints. No simulator. | `ros2 launch smartphone_robot display.launch.py` |
+| `teleop.launch.py` | Gazebo + arrow-key driving + robot camera window. | `ros2 launch smartphone_robot teleop.launch.py` |
+| `gazebo.launch.py` | Gazebo + robot only, no autonomy. Takes `world:=`, `x:=`, `y:=`. Included by the others. | `ros2 launch smartphone_robot gazebo.launch.py world:=indoor.world` |
+| `mapping.launch.py` | SLAM: robot auto-explores, stops when the map is complete, then arrow keys take over. RViz + camera. Takes `world:=`, `x:=`, `y:=`, `rviz:=`, `teleop:=`, `camera:=`. | `ros2 launch smartphone_robot mapping.launch.py` |
+| `navigation.launch.py` | Localise on a saved map (AMCL) and drive to Nav2 goals. | `ros2 launch smartphone_robot navigation.launch.py` |
+| `follow_sim.launch.py` | Visual servoing in sim: robot follows a red post with its own camera. | `ros2 launch smartphone_robot follow_sim.launch.py rviz:=true` |
+| `phone_follow.launch.py` | A colour the phone camera sees steers the simulated robot. | `ros2 launch smartphone_robot phone_follow.launch.py stream_url:='http://user:%40pass@172.20.10.1:8081/video'` |
+| `phone_detect.launch.py` | YOLO object recognition on the live phone camera. | `ros2 launch smartphone_robot phone_detect.launch.py stream_url:='http://user:%40pass@172.20.10.1:8081/video'` |
+
+### Nodes (`ros2 run smartphone_robot <name>`)
+
+| Node | What it does |
+|---|---|
+| `wander_node` | Reactive obstacle-avoidance explorer; auto-stops when `/map` growth plateaus and hands `/cmd_vel` to teleop. |
+| `keyboard_teleop` | Arrow-key / WASD driving to `/cmd_vel`; silent until the first key. |
+| `drive_distance_server` | `DriveDistance` action server with feedback and cancel (open-loop `speed × time`). |
+| `object_follower` | OpenCV HSV colour-blob visual servoing; centroid error drives `angular.z` / `linear.x`. Works on either the robot or the phone camera (topic remap only). |
+| `object_detector` | YOLOv4-tiny via `cv2.dnn` on a camera topic; 80 COCO classes. |
+| `phone_sensor_bridge` | Phone IMU + GPS over Phyphox HTTP into `sensor_msgs/Imu` + `NavSatFix`. Batch timestamp polling reconstructs the full 50 Hz. |
+| `phone_camera_bridge` | Phone camera over MJPEG/RTSP into `sensor_msgs/Image`; downscales before serialisation. |
+| `camera_viewer` | Standalone sizable image window for any image topic. |
+| `localization_eval` | Logs AMCL error vs ground truth to CSV at 5 Hz. |
+| `node_utils` | Not runnable — shared `run_node` lifecycle helper imported by the others. |
+
+### Scripts (`bash scripts/<file>` or `python3 scripts/<file>`)
+
+| Script | What it does | Command |
+|---|---|---|
+| `add_room.py` | Drop a `.dae`/`.obj`/`.stl` mesh, get a Gazebo world and a ready mapping command. Repairs OBJ normals. | `python3 scripts/add_room.py room.dae myroom` |
+| `save_map.sh` | Export the live SLAM map to `maps/<name>.pgm` + `.yaml`. | `bash scripts/save_map.sh indoor` |
+| `download_house.sh` | Fetch the OpenRobotics House world from Gazebo Fuel. | `bash scripts/download_house.sh` |
+| `download_yolo.sh` | Fetch the YOLOv4-tiny weights (git-ignored). | `bash scripts/download_yolo.sh` |
+| `experiment_beam_count.sh` | Controlled AMCL beam-count sweep against ground truth. | `bash scripts/experiment_beam_count.sh 30 180 360` |
+| `stop_all.sh` | Kill every stray Gazebo / bridge process between runs. | `bash scripts/stop_all.sh` |
+| `capture_rviz.sh` | Screenshot RViz on a headless Xvfb display. | `bash scripts/capture_rviz.sh` |
+| `record_demo.sh` | Record an RViz demo video on Xvfb with ffmpeg. | `scripts/record_demo.sh <rviz> <out.mp4> <seconds>` |
+| `bake_rviz_geometry.sh` | Splice RViz's own panel-layout blob back into a hand-written config. | `bash scripts/bake_rviz_geometry.sh` |
+| `check_xml.py` | Catch the `--`-in-XML-comment trap across xacro/world files. | `python3 scripts/check_xml.py --fix` |
 
 ## Results
 
@@ -293,7 +341,6 @@ Measured in the 8 × 8 m `indoor.world`, all verified from live topic output:
 | **SLAM map** | 8.2 × 8.8 m at 0.05 m/cell; every wall, the L-partition, both pillars, three crates, the planter and even the four table legs reconstructed |
 | **Localisation accuracy** | **76–83 % of laser returns land exactly on a mapped wall cell, 0 % fall outside the map, mean error 0.9–2.7 cm** (measured, see below) |
 | **Navigation** | consecutive goals all `SUCCEEDED` with **0 recovery behaviours** and `Failed to make progress: 0`; final position error 0.16–0.20 m against a 0.20 m tolerance |
-| Velocity control | commanded 10 Hz measured at 9.999 Hz; 20 Hz at 20.00 Hz |
 
 ## The Smartphone as a Real Sensor
 
@@ -634,12 +681,6 @@ Stated plainly, because they matter for interpreting the results:
 - **The robot is simulated.** Gazebo's sensor noise is Gaussian and well-behaved; real LiDAR
   is defeated by glass, mirrors and dark surfaces, real wheels slip on dust, and real
   timestamps jitter. Simulation flatters these algorithms.
-- **The phone's IMU, GPS and camera are integrated; the OpenCV detector is not.**
-  Real accelerometer, gyroscope, GPS and camera data all flow into ROS 2 today, verified
-  end to end. What does not exist yet is anything that *acts* on them: the phone's data is
-  published, not consumed. Closing that loop — a detector on the camera that changes the
-  robot's behaviour — is the remaining work.
-
 - **The two phone streams cannot run at once.** iOS only lets the foreground app hold a
   network server, so Phyphox (IMU) and IP Camera Lite (camera) run one at a time, not
   together. On a real robot each sensor is its own device; here they share one, so they
@@ -655,16 +696,14 @@ Stated plainly, because they matter for interpreting the results:
 
 ## Future Improvements
 
-1. **Smartphone sensor bridge** — a Python node turning a phone's HTTP/JSON sensor stream
-   into `sensor_msgs/Imu` and `sensor_msgs/Image`, with correct `header.stamp` and
-   `frame_id`. This is the next piece of work.
-2. **OpenCV perception node** — subscribe to the camera, detect objects, publish detections,
-   and let them influence robot behaviour.
-3. **Closed-loop `DriveDistance`** using `/odom` instead of dead reckoning.
-4. **Sensor fusion** — `robot_localization` combining wheel odometry with IMU, which is
+1. **Closed-loop `DriveDistance`** using `/odom` instead of dead reckoning.
+2. **Sensor fusion** — `robot_localization` combining wheel odometry with IMU, which is
    where the phone's real IMU becomes genuinely useful.
-5. **`rosbag2` datasets** so perception can be tested repeatably without the simulator.
-6. **Port to hardware** — the point of the architecture. Replacing `ros_gz_bridge` with real
+3. **`rosbag2` datasets** so perception can be tested repeatably without the simulator.
+4. **A detector that steers the robot** — `object_detector` publishes YOLO detections
+   today, but nothing yet turns a detection into a `/cmd_vel`. The colour servoing in
+   `object_follower` already proves the loop; swapping the blob for a YOLO class is the step.
+5. **Port to hardware** — the point of the architecture. Replacing `ros_gz_bridge` with real
    drivers should leave SLAM, Nav2 and the custom nodes untouched.
 
 ## License

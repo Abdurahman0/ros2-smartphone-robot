@@ -19,8 +19,9 @@ interview.
 > Modelled a differential-drive robot in URDF/xacro with simulated LiDAR, camera and IMU;
 > used slam_toolbox to map an unknown 8 × 8 m environment (97.6 % coverage) and Navigation2
 > with AMCL to reach commanded goals autonomously (0.17 m final error, no recovery
-> behaviours). Wrote the custom nodes, a parameter-validated velocity controller, a SetBool
-> service and a DriveDistance action server, and packaged the whole toolchain in Docker.
+> behaviours). Wrote the custom nodes — a reactive explorer that auto-stops when the map is
+> complete, a DriveDistance action server with feedback and cancel, and OpenCV/YOLO vision —
+> and packaged the whole toolchain in Docker.
 
 ## Longer paragraph (personal statement or cover letter)
 

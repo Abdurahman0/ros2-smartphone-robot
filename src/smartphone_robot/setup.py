@@ -14,7 +14,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         # Non-Python files are NOT installed automatically. Without these two lines
-        # `ros2 launch smartphone_robot velocity_demo.launch.py` fails with "file
+        # `ros2 launch smartphone_robot mapping.launch.py` fails with "file
         # not found", because ros2 launch looks in install/share/<pkg>/, never in
         # src/. Every new launch file or config file is picked up by these globs.
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
@@ -44,8 +44,6 @@ setup(
         # Each line maps  <executable name> = <python module>:<function>
         # The left-hand name is the second word of `ros2 run smartphone_robot <name>`.
         'console_scripts': [
-            'velocity_publisher = smartphone_robot.velocity_publisher:main',
-            'velocity_monitor = smartphone_robot.velocity_monitor:main',
             'drive_distance_server = smartphone_robot.drive_distance_server:main',
             'wander_node = smartphone_robot.wander_node:main',
             'localization_eval = smartphone_robot.localization_eval:main',

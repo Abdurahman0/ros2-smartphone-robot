@@ -195,7 +195,7 @@ class DriveDistanceServer(Node):
         return result
 
     def _stop_robot(self):
-        """Publish zero velocity and let it flush -- see velocity_publisher."""
+        """Publish zero velocity and let it flush before the node exits."""
         self.cmd_pub.publish(Twist())
         time.sleep(0.1)
 

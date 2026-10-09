@@ -33,7 +33,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     pkg_share = FindPackageShare('smartphone_robot')
     slam_params = PathJoinSubstitution([pkg_share, 'config', 'slam_toolbox.yaml'])
-    node_params = PathJoinSubstitution([pkg_share, 'config', 'velocity_params.yaml'])
+    node_params = PathJoinSubstitution([pkg_share, 'config', 'mapping_params.yaml'])
     rviz_config = PathJoinSubstitution([pkg_share, 'rviz', 'mapping.rviz'])
 
     x_arg = DeclareLaunchArgument('x', default_value='-3.0')

@@ -1,4 +1,4 @@
-# Parameters for the velocity demo, loaded by launch/velocity_demo.launch.py
+# Parameters loaded by launch/mapping.launch.py for the autonomous explorer.
 #
 # Structure is fixed by ROS 2 and is easy to get wrong:
 #
@@ -9,25 +9,6 @@
 #
 # Note the DOUBLE underscore in ros__parameters. A single one is also silent.
 # `ros2 param list` is how you check that values actually arrived.
-
-velocity_publisher:
-  ros__parameters:
-    linear_x: 0.25       # forward speed [m/s]
-    angular_z: 0.4       # turn rate [rad/s] -- positive is left (counter-clockwise)
-    publish_rate: 20.0   # [Hz]. Real bases usually want 10-50 Hz; too slow and
-                         # motion becomes jerky, too fast just wastes bandwidth.
-
-    # Safety envelope enforced by the node's parameter-validation callback. Any
-    # attempt to set a speed beyond these is REJECTED at runtime, so a typo cannot
-    # reach the wheels. Pick values the actual hardware can survive.
-    max_linear_speed: 0.6    # [m/s]
-    max_angular_speed: 1.5   # [rad/s]
-
-velocity_monitor:
-  ros__parameters:
-    # Must be comfortably longer than one publish period (1/20 s here), otherwise
-    # the watchdog fires on normal scheduling jitter and cries wolf.
-    timeout_sec: 0.75
 
 # Exploration speeds used while mapping. Deliberately slow: slam_toolbox takes a keyframe
 # every 0.15 m / 0.15 rad, so driving slowly gives it more overlapping views of each
