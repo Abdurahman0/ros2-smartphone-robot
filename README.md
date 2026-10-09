@@ -202,8 +202,25 @@ is complete**, then the arrow keys take over. RViz and the robot camera open too
 ```bash
 ros2 launch smartphone_robot mapping.launch.py
 # after "MAPPING COMPLETE", save it from another terminal:
-cd src/smartphone_robot/maps
-ros2 run nav2_map_server map_saver_cli -f indoor --ros-args -p use_sim_time:=true
+bash scripts/save_map.sh indoor   # writes maps/indoor.pgm + maps/indoor.yaml
+```
+
+**Map your own room from a 3D mesh** — drop in a `.dae` / `.obj` / `.stl` and the
+script builds a Gazebo world and prints the exact mapping command to run.
+```bash
+python3 scripts/add_room.py path/to/room.dae myroom
+colcon build --symlink-install     # pick up the new world + meshes
+# then run the command it printed, e.g.:
+ros2 launch smartphone_robot mapping.launch.py world:=myroom.world x:=0 y:=0 rviz:=true
+```
+If the robot spawns inside a wall or sees nothing, re-run with `--spawn "X Y"` pointing
+at open floor. OBJ meshes without vertex normals are repaired automatically (DART mesh
+collision needs them).
+
+**Map a downloaded 3D house** — fetch a full house from Gazebo Fuel and map it.
+```bash
+bash scripts/download_house.sh
+ros2 launch smartphone_robot mapping.launch.py world:=house.world rviz:=true
 ```
 
 **Autonomous navigation** — localise on the saved map and drive to clicked goals.
