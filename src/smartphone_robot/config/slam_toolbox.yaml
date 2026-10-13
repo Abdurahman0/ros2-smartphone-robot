@@ -40,7 +40,12 @@ slam_toolbox:
     # ---- Map output ----
     resolution: 0.05           # [m/cell]. 5 cm is the usual indoor compromise: fine
                                # enough for doorways, cheap enough to plan on.
-    max_laser_range: 12.0      # must match the LiDAR's real maximum
+    max_laser_range: 8.0       # [m] cap BELOW the LiDAR's 12 m hardware max. The room is
+                               # ~8 m across, so every wall is seen from well within 8 m as
+                               # the robot drives. Returns past 8 m are distant walls hit at
+                               # a grazing angle -- spaced ~0.19 m apart at 11 m, so they
+                               # land as a sparse "fan" of noisy points outside the room.
+                               # Capping the range discards them and keeps the grid clean.
     map_update_interval: 2.0   # [s] how often the occupancy grid is republished
 
     transform_publish_period: 0.02   # [s] -> 50 Hz map->odom. Nav2 wants this fast.
